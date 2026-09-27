@@ -69,7 +69,7 @@ npm run build      # typecheck + production build with service worker → dist/
 npm run preview
 ```
 
-`npm run build:artifact` makes a version that runs inside a claude.ai artifact (`dist-artifact/grimrecall.html` plus `assets/`). It uses relative paths, inlines the fonts and has no service worker. Backups there go through copy and paste, because the artifact frame blocks downloads.
+`npm run build:artifact` makes a version that runs inside a claude.ai artifact (`dist-artifact/grimrecall.html` plus `assets/`). It uses relative paths, inlines the fonts and has no service worker. Backups there go through copy and paste, because the artifact frame blocks downloads. In that build, `src/core/cloud.ts` saves your data to your Claude account through the artifact `db` capability. It lives in your private `data/users/<id>/` folder as gzipped chunks plus one document per image, so the same cards follow you to any device where you open the artifact signed in.
 
 Deploy `dist/` to any static host. It must be served over HTTPS for install and offline support.
 

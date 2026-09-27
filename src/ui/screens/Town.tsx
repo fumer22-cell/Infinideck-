@@ -7,6 +7,7 @@ import { db } from '../../core/db';
 import { levels } from '../../game/skills';
 import { countMature } from '../actions';
 import { Sprite } from '../common';
+import { CloudBadge } from '../CloudGate';
 import { useApp } from '../context';
 import { sfx } from '../sfx';
 
@@ -57,6 +58,7 @@ export function Town() {
         <span className="pill"><Sprite name="coin" size={16} /> {profile.gold}</span>
         <span className="pill"><Sprite name="flame" size={16} /> {profile.streak.count} day streak</span>
         <span className="pill"><Sprite name="star" size={16} /> Total lvl {total}</span>
+        <CloudBadge />
       </div>
 
       {profile.chestPending && (

@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
-import { App } from './ui/App';
+import { CloudGate } from './ui/CloudGate';
 import '@fontsource/silkscreen/latin-400.css';
 import '@fontsource/silkscreen/latin-700.css';
 import '@fontsource/crimson-pro/latin-400.css';
@@ -14,7 +14,7 @@ if (navigator.storage?.persist) void navigator.storage.persist();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <CloudGate />
   </StrictMode>,
 );
 

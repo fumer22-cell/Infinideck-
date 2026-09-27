@@ -2,7 +2,9 @@ import { useRef, useState } from 'react';
 import { exportSave, importSave } from '../../core/backup';
 import { db } from '../../core/db';
 import type { Settings } from '../../core/settings';
+import { syncNow } from '../../core/cloud';
 import { TopBar } from '../common';
+import { useCloudStatus } from '../CloudGate';
 import { useApp } from '../context';
 
 /** Hosted inside a claude.ai artifact: downloads are blocked, so backups go through copy/paste. */
@@ -14,6 +16,7 @@ export function SettingsScreen() {
   const [busy, setBusy] = useState(false);
   const [exported, setExported] = useState<string | null>(null);
   const [pasted, setPasted] = useState('');
+  const cloud = useCloudStatus();
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setSettings({ ...settings, [k]: v });
 
   const doExport = async () => {
@@ -101,6 +104,26 @@ export function SettingsScreen() {
             </select>
           </label>
         </div>
+        {cloud.status !== 'off' && (
+          <div className="stone col">
+            <h3>Save on Claude</h3>
+            <div className="serif" style={{ fontSize: 15 }}>
+              {cloud.status === 'unavailable'
+                ? 'Claude storage is not available in this view, so your cards are only saved in this browser. Open the artifact signed in to claude.ai to save them to your account.'
+                : 'Your cards, progress and images save to your Claude account automatically, so they follow you to any device where you open this page. Only you can see them.'}
+            </div>
+            {cloud.status !== 'unavailable' && (
+              <>
+                <div className="small muted">
+                  {cloud.error || (cloud.lastSyncAt ? `Last saved ${new Date(cloud.lastSyncAt).toLocaleString()}` : 'Not saved yet')}
+                </div>
+                <button className="btn block" disabled={cloud.status === 'saving' || cloud.status === 'connecting'} onClick={() => void syncNow()}>
+                  {cloud.status === 'saving' ? 'Saving…' : 'Sync now'}
+                </button>
+              </>
+            )}
+          </div>
+        )}
         <div className="stone col">
           <h3>Backup</h3>
           <div className="serif muted" style={{ fontSize: 15 }}>
