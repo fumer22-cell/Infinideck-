@@ -9,7 +9,7 @@ import '@fontsource/crimson-pro/latin-600.css';
 import '@fontsource/crimson-pro/latin-400-italic.css';
 import './styles.css';
 
-registerSW({ immediate: true });
+if (import.meta.env.MODE !== 'artifact') registerSW({ immediate: true });
 if (navigator.storage?.persist) void navigator.storage.persist();
 
 createRoot(document.getElementById('root')!).render(

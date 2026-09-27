@@ -8,7 +8,7 @@ import { Sprite, TopBar } from '../common';
 import { useApp } from '../context';
 
 export function DeckView({ deckId }: { deckId: number }) {
-  const { go, back, settings, toast } = useApp();
+  const { go, back, settings, toast, ask } = useApp();
   const [deck, setDeck] = useState<Deck | null>(null);
   const [cards, setCards] = useState<CardRow[]>([]);
   const [q, setQ] = useState('');
@@ -42,7 +42,7 @@ export function DeckView({ deckId }: { deckId: number }) {
   };
 
   const remove = async () => {
-    if (!confirm(`Delete "${deck.name}" and all ${cards.length} cards? This cannot be undone.`)) return;
+    if (!(await ask(`Delete "${deck.name}" and all ${cards.length} cards? This cannot be undone.`, 'Delete deck'))) return;
     const ids = cards.map((c) => c.id!);
     await db.transaction('rw', db.cards, db.logs, db.decks, async () => {
       await db.logs.where('cardId').anyOf(ids).delete();

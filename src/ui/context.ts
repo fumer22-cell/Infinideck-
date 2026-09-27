@@ -25,6 +25,8 @@ export interface AppCtx {
   back: () => void;
   toast: (msg: string) => void;
   celebrate: (ups: LevelUp[]) => void;
+  /** in-app confirmation dialog (browser confirm() is unavailable in some hosts) */
+  ask: (message: string, confirmLabel?: string) => Promise<boolean>;
 }
 
 export const Ctx = createContext<AppCtx>(null!);

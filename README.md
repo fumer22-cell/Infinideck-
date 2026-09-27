@@ -69,6 +69,8 @@ npm run build      # typecheck + production build with service worker → dist/
 npm run preview
 ```
 
+`npm run build:artifact` makes a version that runs inside a claude.ai artifact (`dist-artifact/grimrecall.html` plus `assets/`). It uses relative paths, inlines the fonts and has no service worker. Backups there go through copy and paste, because the artifact frame blocks downloads.
+
 Deploy `dist/` to any static host. It must be served over HTTPS for install and offline support.
 
 `scripts/gen-icons.mjs` regenerates the PWA icons, which are drawn from a pixel grid with no dependencies.

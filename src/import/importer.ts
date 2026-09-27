@@ -11,8 +11,15 @@ let sqlPromise: Promise<SqlJsStatic> | null = null;
 export function loadSql(): Promise<SqlJsStatic> {
   if (!sqlPromise) {
     sqlPromise = (async () => {
-      const [{ default: initSqlJs }, { default: wasmUrl }] = await Promise.all([import('sql.js'), import('sql.js/dist/sql-wasm.wasm?url')]);
-      return initSqlJs({ locateFile: () => wasmUrl });
+      try {
+        const [{ default: initSqlJs }, { default: wasmUrl }] = await Promise.all([import('sql.js'), import('sql.js/dist/sql-wasm.wasm?url')]);
+        return await initSqlJs({ locateFile: () => wasmUrl });
+      } catch (e) {
+        // Some hosts (e.g. strict CSP frames) refuse WebAssembly: fall back to the asm.js build.
+        console.warn('sql.js wasm unavailable, using asm.js build', e);
+        const { default: initAsm } = await import('sql.js/dist/sql-asm.js');
+        return initAsm();
+      }
     })();
   }
   return sqlPromise;

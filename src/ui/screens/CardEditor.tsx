@@ -8,7 +8,7 @@ import { CardFace, Sprite, TopBar } from '../common';
 import { useApp } from '../context';
 
 export function CardEditor({ deckId, cardId }: { deckId: number; cardId?: number }) {
-  const { back, toast } = useApp();
+  const { back, toast, ask } = useApp();
   const [card, setCard] = useState<CardRow | null>(null);
   const [front, setFront] = useState('');
   const [backText, setBackText] = useState('');
@@ -69,7 +69,7 @@ export function CardEditor({ deckId, cardId }: { deckId: number; cardId?: number
   };
 
   const remove = async () => {
-    if (!card || !confirm('Delete this card and its review history?')) return;
+    if (!card || !(await ask('Delete this card and its review history?', 'Delete card'))) return;
     await db.transaction('rw', db.cards, db.logs, async () => {
       await db.logs.where('cardId').equals(card.id!).delete();
       await db.cards.delete(card.id!);

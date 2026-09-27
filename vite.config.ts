@@ -2,10 +2,18 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
-export default defineConfig({
+// `vite build --mode artifact` produces a self-contained build for hosting inside a
+// claude.ai artifact: relative asset paths, fonts inlined, no service worker.
+export default defineConfig(({ mode }) => ({
+  base: mode === 'artifact' ? './' : '/',
+  build:
+    mode === 'artifact'
+      ? { outDir: 'dist-artifact', assetsInlineLimit: (file: string) => /\.woff2?$/.test(file) }
+      : {},
   plugins: [
     react(),
     VitePWA({
+      disable: mode === 'artifact',
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
@@ -32,4 +40,4 @@ export default defineConfig({
   test: {
     environment: 'node',
   },
-});
+}));

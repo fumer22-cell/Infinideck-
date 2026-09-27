@@ -4,3 +4,4 @@ dev-dist
 *.tsbuildinfo
 .DS_Store
 screenshots/
+dist-artifact

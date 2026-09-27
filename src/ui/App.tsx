@@ -25,15 +25,22 @@ export function App() {
   const profileRef = useRef(profile);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [fanfare, setFanfare] = useState<LevelUp[] | null>(null);
+  const [asking, setAsking] = useState<{ message: string; label: string; resolve: (ok: boolean) => void } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    void Promise.all([loadSettings(), loadProfile()]).then(([s, p]) => {
-      setSettingsState(s);
-      setMuted(s.muted);
-      profileRef.current = p;
-      setProfile(p);
-      setReady(true);
-    });
+    Promise.all([loadSettings(), loadProfile()])
+      .then(([s, p]) => {
+        setSettingsState(s);
+        setMuted(s.muted);
+        profileRef.current = p;
+        setProfile(p);
+        setReady(true);
+      })
+      .catch((e) => {
+        console.error(e);
+        setLoadError('This browser is blocking local storage (private window or blocked site data), so Grimrecall cannot save your cards here.');
+      });
   }, []);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -67,6 +74,11 @@ export function App() {
       sfx.levelUp();
       setFanfare(ups);
     },
+    ask: (message, label = 'Confirm') => new Promise((resolve) => setAsking({ message, label, resolve })),
+  };
+  const answer = (ok: boolean) => {
+    asking?.resolve(ok);
+    setAsking(null);
   };
 
   const screen = stack[stack.length - 1];
@@ -78,12 +90,24 @@ export function App() {
         {!ready ? (
           <div className="screen" style={{ justifyContent: 'center' }}>
             <div className="title-logo">GRIMRECALL</div>
+            {loadError && <div className="leather serif center" style={{ fontSize: 16 }}>{loadError}</div>}
           </div>
         ) : (
           <Route screen={screen} key={stack.length + screen.name} />
         )}
         {fanfare && <Fanfare ups={fanfare} onDone={closeFanfare} />}
         {toastMsg && <Toast msg={toastMsg} />}
+        {asking && (
+          <div className="modal-back center" style={{ zIndex: 60 }}>
+            <div className="modal stone" role="alertdialog" aria-modal="true">
+              <div className="serif" style={{ fontSize: 17 }}>{asking.message}</div>
+              <div className="grid2">
+                <button className="btn stone" onClick={() => answer(false)}>Cancel</button>
+                <button className="btn red" onClick={() => answer(true)} autoFocus>{asking.label}</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Ctx.Provider>
   );
