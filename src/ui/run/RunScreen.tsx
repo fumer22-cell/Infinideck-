@@ -169,7 +169,10 @@ export function RunScreen() {
       r.combat.player.maxHp += 2 * hpUps;
       r.combat.player.hp += 2 * hpUps;
     }
-    for (const u of ups) pushLog(r, `Congratulations, you just advanced a ${u.skill[0].toUpperCase() + u.skill.slice(1)} level! (${u.level})`, 'xp');
+    for (const u of ups) {
+      const name = u.skill[0].toUpperCase() + u.skill.slice(1);
+      pushLog(r, `Congratulations, you just advanced ${/^[AEIOU]/.test(name) ? 'an' : 'a'} ${name} level! (${u.level})`, 'xp');
+    }
     if (ups.length) app.celebrate(ups);
     return ups;
   };
@@ -296,8 +299,9 @@ export function RunScreen() {
       r = await fillHand(r, settings, draws);
       if (!r.hand.length && r.combat) {
         const foe = r.combat.enemy;
-        pushLog(r, foe.boss ? `${foe.name} retreats into the shadows...` : `${foe.name} flees into the darkness.`, 'info');
         r = await endOfQueue(r);
+        if (r.phase === 'waiting') pushLog(r, `Your hand is empty. ${foe.name} circles, waiting...`, 'info');
+        else pushLog(r, foe.boss ? `${foe.name} retreats into the shadows...` : `${foe.name} flees into the darkness.`, 'info');
       }
       await setRun(r);
     } finally {
@@ -408,7 +412,18 @@ export function RunScreen() {
     const r = runRef.current!;
     const next = await nextLearningDue(Date.now());
     if (next && next > Date.now()) return;
-    await continueDelve({ ...r, phase: 'fight', combat: null });
+    if (r.combat) {
+      // resume the same fight with the returning learning cards
+      const refilled = await fillHand({ ...r, phase: 'fight' }, settings);
+      await setRun(refilled.hand.length ? refilled : await endOfQueue(refilled));
+    } else await continueDelve({ ...r, phase: 'fight', combat: null });
+  };
+
+  const leaveWhileWaiting = async () => {
+    const r = structuredClone(runRef.current!);
+    r.phase = 'victory';
+    pushLog(r, 'You leave while your freshest memories settle. They will be waiting.', 'info');
+    await setRun(r);
   };
 
   if (!run) return <div className="screen" />;
@@ -462,7 +477,7 @@ export function RunScreen() {
       {run.phase === 'rest' && <RestStop onRest={rest} onShop={openShop} healPct={35 + (app.profile.meta.campfire ?? 0) * 10} run={run} />}
       {run.phase === 'shop' && <Shop run={run} discount={discount} onBuy={buyRelic} onPotion={buyPotion} onLeave={() => continueDelve(structuredClone(run))} />}
       {run.phase === 'bossReward' && <BossReward choices={run.choices} onPick={takeBossRelic} />}
-      {run.phase === 'waiting' && <WaitingScreen onResume={waitResume} onLeave={retreat} />}
+      {run.phase === 'waiting' && <WaitingScreen onResume={waitResume} onLeave={leaveWhileWaiting} />}
       {run.phase === 'victory' && <VictoryScreen run={run} onDone={finishRun} />}
       {run.phase === 'dead' && <DeathScreen run={run} onDone={finishRun} />}
       {menu && <MenuModal run={run} onClose={() => setMenu(false)} onRetreat={retreat} />}

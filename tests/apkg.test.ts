@@ -195,6 +195,7 @@ describe('importApkg into IndexedDB', () => {
     const card = await db.cards.where('ankiId').equals(11).first();
     expect(card!.due).toBe(CRT * 1000 + dueDays * DAY);
     expect(card!.effect).toBeTruthy();
+    expect(card!.tierSeen).toBe(1); // imported at its current tier: no retroactive tier-up
     expect(await db.logs.where('cardId').equals(card!.id!).count()).toBe(3);
     expect(await db.media.get('paris.png')).toBeTruthy();
 

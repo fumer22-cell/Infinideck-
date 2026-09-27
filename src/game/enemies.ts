@@ -67,7 +67,9 @@ export function spawnEnemy(biome: Biome, depth: number, avgPower: number, cardsT
   const pool = boss ? BOSSES.filter((b) => b.biomes.includes(biome)) : ENEMIES.filter((e) => e.biomes.includes(biome));
   const t = pick(pool, rng);
   const scale = 1 + depth * 0.06;
-  const hp = Math.max(t.hp * 0.5, Math.round(avgPower * cardsTarget * (t.hp / 16) * 0.9 + randInt(-2, 2, rng)));
+  // ~75% of card power turns into damage on average (heals/wards deal none).
+  const toughness = boss ? 1 : Math.min(1.3, Math.max(0.7, t.hp / 16));
+  const hp = Math.max(6, Math.round(avgPower * 0.75 * cardsTarget * toughness * scale + randInt(-2, 2, rng)));
   const atk = Math.round(t.atk * scale);
   const e: EnemyState = {
     id: t.id,

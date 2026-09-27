@@ -173,7 +173,7 @@ export async function beginFight(prev: RunState, s: Settings, profile: Profile):
   const startBlock = (profile.meta.bulwark ?? 0) * 2;
   r.combat = startCombat({ ...r.player, block: 0 }, enemy, r.relics, startBlock, r.deathWardUsed);
   if (boss) r.bossFought = true;
-  pushLog(r, boss ? `${enemy.name} rises before you!` : `A ${enemy.name} blocks your path.`, boss ? 'bad' : 'info');
+  pushLog(r, boss ? `${enemy.name} rises before you!` : `${/^[AEIOU]/.test(enemy.name) ? 'An' : 'A'} ${enemy.name} blocks your path.`, boss ? 'bad' : 'info');
   r = await fillHand(r, s);
   return r;
 }

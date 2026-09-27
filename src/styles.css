@@ -118,7 +118,7 @@ button { font-family: var(--pixel); cursor: pointer; }
 }
 .btn:active { transform: translateY(3px); box-shadow: inset 0 2px 0 rgba(255,220,150,0.25), 0 0 0 2px var(--gold), 0 1px 0 2px #000; }
 .btn:disabled { filter: grayscale(0.9) brightness(0.6); cursor: default; }
-.btn.red { background: linear-gradient(180deg, var(--blood-hi), var(--blood) 55%, #4a0808); }
+.btn.red { color: #ffe8c8; background: linear-gradient(180deg, var(--blood-hi), var(--blood) 55%, #4a0808); }
 .btn.green { color: #f4ffd8; background: linear-gradient(180deg, var(--moss-hi), var(--moss) 55%, #1e3a14); }
 .btn.stone { background: linear-gradient(180deg, var(--stone-hi), var(--stone) 55%, var(--stone-lo)); color: var(--text); padding: 10px 14px; margin: 4px 2px 8px; }
 .btn.small { min-height: 36px; padding: 6px 10px; font-size: 11px; }

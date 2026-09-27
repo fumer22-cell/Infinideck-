@@ -69,7 +69,6 @@ export function Arena({ biome, combat, cls, relics, gold, fight, mode, fx, enemy
           <div className="status-row">
             {e.block > 0 && <span className="pill"><Sprite name="shield" size={12} />{e.block}</span>}
             {e.poison > 0 && <span className="pill" style={{ color: '#c090ff' }}><Sprite name="skull" size={12} />{e.poison}</span>}
-            {e.atk > 0 && <span className="pill"><Sprite name="sword" size={12} />{e.atk}</span>}
           </div>
         </div>
       )}

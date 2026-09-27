@@ -58,11 +58,11 @@ export function Fanfare({ ups, onDone }: { ups: LevelUp[]; onDone: () => void })
           return (
             <div key={u.skill} className="row" style={{ justifyContent: 'center', marginTop: 6 }}>
               <Sprite name={s.icon} size={24} />
-              <span className="small">You advanced a {s.name} level.</span>
+              <span className="small">{s.name} is now level {u.level}.</span>
             </div>
           );
         })}
-        <div className="lvl">Level {ups[ups.length - 1].level}</div>
+        {ups.length === 1 && <div className="lvl">Level {ups[0].level}</div>}
       </div>
     </div>
   );

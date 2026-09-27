@@ -17,7 +17,7 @@ export const EFFECTS: Record<EffectId, EffectDef> = {
   draw: { id: 'draw', name: 'Insight', icon: 'eye', rarity: 'common', desc: (p) => `Deal ${Math.ceil(p * 0.5)} and draw a card.` },
   doublehit: { id: 'doublehit', name: 'Twin Fang', icon: 'daggers', rarity: 'rare', desc: (p) => `Hit twice for ${Math.ceil(p * 0.65)}.` },
   lifesteal: { id: 'lifesteal', name: 'Leech Blade', icon: 'fang', rarity: 'rare', desc: (p) => `Deal ${p}, heal half.` },
-  cleave: { id: 'cleave', name: 'Cleave', icon: 'axe', rarity: 'rare', desc: (p) => `Deal ${Math.ceil(p * 1.2)}, ignores block; overkill carries on.` },
+  cleave: { id: 'cleave', name: 'Cleave', icon: 'axe', rarity: 'rare', desc: (p) => `Deal ${Math.ceil(p * 1.2)}, ignoring block.` },
   meteor: { id: 'meteor', name: 'Starfall', icon: 'star', rarity: 'epic', desc: (p) => `Deal ${p * 2} damage.` },
   phoenix: { id: 'phoenix', name: 'Phoenix Rite', icon: 'flame', rarity: 'epic', desc: (p) => `Heal ${p} and gain ${p} block.` },
   soulrend: { id: 'soulrend', name: 'Soulrend', icon: 'soul', rarity: 'epic', desc: (p) => `Deal ${Math.ceil(p * 1.5)}, heal all of it.` },
@@ -39,6 +39,14 @@ export function rollStartingEffect(rng: Rng = rand): EffectId {
   if (r < 0.7) return 'shield';
   if (r < 0.85) return 'poison';
   return 'draw';
+}
+
+/** Roll for a card created at a given maturity (e.g. imported mature cards). */
+export function rollEffectForTier(tier: Tier, rng: Rng = rand): EffectId {
+  const r = rng();
+  if (tier >= 3 && r < 0.15) return pick(EPIC, rng);
+  if (tier >= 2 && r < 0.4) return pick(RARE, rng);
+  return rollStartingEffect(rng);
 }
 
 export function effectPoolForTier(tier: Tier): EffectId[] {

@@ -1,8 +1,8 @@
 import type { SqlJsStatic } from 'sql.js';
 import { db } from '../core/db';
-import { newCardRow } from '../core/srs';
+import { newCardRow, tierOf } from '../core/srs';
 import type { CardRow } from '../core/types';
-import { rollStartingEffect } from '../game/effects';
+import { rollEffectForTier, rollStartingEffect } from '../game/effects';
 import { parseApkg } from './apkg';
 import { csvToNotes } from './csv';
 import { extractImageRefs, mimeFor, sanitizeHtml, textToHtml } from './html';
@@ -44,7 +44,9 @@ export async function importApkg(data: ArrayBuffer, SQL?: SqlJsStatic, now = Dat
         continue;
       }
       const deckId = deckMap.get(c.ankiDeckId) ?? (await fallbackDeck());
-      const row: CardRow = { ...newCardRow(deckId, c.front, c.back, rollStartingEffect(), now), ...c.sched, suspended: c.suspended, ankiId: c.ankiId };
+      const tier = tierOf(c.sched);
+      // Already-mature imports start at their tier (no retroactive tier-up choices).
+      const row: CardRow = { ...newCardRow(deckId, c.front, c.back, rollEffectForTier(tier), now), ...c.sched, suspended: c.suspended, ankiId: c.ankiId, tierSeen: tier };
       const id = (await db.cards.add(row)) as number;
       if (c.history.length) {
         await db.logs.bulkAdd(c.history.map((h) => ({ ...h, cardId: id })));
