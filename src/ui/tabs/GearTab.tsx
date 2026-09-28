@@ -3,6 +3,8 @@ import { combatLevel, SKILL_BY_ID } from '../../game/skills';
 import { bonuses, canEquip, equip, unequip, type CombatStyle } from '../../game/world';
 import { ItemIcon, Sprite } from '../common';
 import { useApp } from '../context';
+import { HeroView } from '../HeroView';
+import { heroLook } from '../heroLook';
 import { sfx } from '../sfx';
 
 const SLOT_LABEL: Record<Slot, string> = { weapon: 'Weapon', helm: 'Helm', body: 'Body', shield: 'Shield', amulet: 'Amulet', ring: 'Ring' };
@@ -29,7 +31,7 @@ export function GearTab() {
       </div>
       <div className="stone col">
         <div className="row">
-          <Sprite name="warrior" size={48} />
+          <HeroView look={heroLook(world, lv, 'sword')} size={72} label="Your character in their gear" />
           <div className="grow">
             <div className="hpbar" style={{ width: '100%' }}>
               <i style={{ width: `${(world.hp / maxHp) * 100}%` }} />

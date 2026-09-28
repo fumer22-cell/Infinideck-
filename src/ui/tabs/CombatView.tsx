@@ -16,6 +16,7 @@ import { HandCard } from '../run/HandCard';
 import { sfx } from '../sfx';
 import { practicePool, recordGrade, scaleXp } from '../study';
 import { TierUpModal } from '../TierUp';
+import { heroLook } from '../heroLook';
 import { DoneForNow } from './StudyTab';
 
 const HAND = 3;
@@ -64,6 +65,7 @@ export function CombatView({ queue, reload, practice, setPractice, nextLearn }: 
   /** a card whose maturity rose (maybe while training another skill): choose its power before playing */
   const [ascending, setAscending] = useState<CardRow | null>(null);
   const [spawnKey, setSpawnKey] = useState(0);
+  const [attackKey, setAttackKey] = useState(0);
   /** cards whose maturity rose while training other skills, waiting to choose a new power */
   const [pending, setPending] = useState<CardRow[]>([]);
   const loadPending = async () => setPending(await db.cards.where('state').equals(State.Review).filter((r) => tierOf(r) > r.tierSeen).toArray());
@@ -188,6 +190,7 @@ export function CombatView({ queue, reload, practice, setPractice, nextLearn }: 
       await app.updateWorld((w) => {
         if (fast) pushLog(w, 'Swift recall! +25% power.', 'gold');
         res = combatPlay(w, lv, maxHp, { effect: card.effect, tier: rec.tier, wasNew }, grade, fast);
+        if (res.events.some((e) => e.t === 'enemyDmg' || e.t === 'miss')) setAttackKey((k) => k + 1);
         animMs = animate(res.events, w, res.enemyName);
         if (w.combat) {
           w.combat.hand = w.combat.hand.filter((id) => id !== card.id);
@@ -302,7 +305,8 @@ export function CombatView({ queue, reload, practice, setPractice, nextLearn }: 
         combo={c?.combo ?? 0}
         relics={b.relics}
         player={{ hp: world.hp, maxHp, block: c?.block ?? 0 }}
-        playerSprite="warrior"
+        look={heroLook(world, lv, 'sword')}
+        attackKey={attackKey}
         fx={fx}
         enemyHurt={enemyHurt}
         playerHurt={playerHurt}

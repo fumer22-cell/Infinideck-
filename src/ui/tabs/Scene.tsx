@@ -1,8 +1,8 @@
 import { backgroundUrl, type Scene as SceneId } from '../../art/backgrounds';
 import { AREA_BY_ID, COOKING, FORGING, GATHER } from '../../game/activities';
-import { ITEMS } from '../../game/items';
 import { SKILL_BY_ID, xpProgress, type SkillId } from '../../game/skills';
 import type { Active } from '../../game/world';
+import { ActionScene } from '../ActionScene';
 import { ItemIcon, Sprite, XpBar } from '../common';
 import { useApp } from '../context';
 
@@ -26,7 +26,7 @@ export function activityInfo(a: Active): { skill: SkillId; name: string; icon: s
 }
 
 /** The top panel of the Study tab: where you are, what you're making, and your progress. */
-export function Scene({ active, pops, status }: { active: Active; pops: Pop[]; status?: string | null }) {
+export function Scene({ active, pops, status, actionKey = 0 }: { active: Active; pops: Pop[]; status?: string | null; actionKey?: number }) {
   const { profile, world } = useApp();
   const info = activityInfo(active);
   const pr = xpProgress(profile.xp[info.skill]);
@@ -34,6 +34,7 @@ export function Scene({ active, pops, status }: { active: Active; pops: Pop[]; s
   const readyPlots = world.plots.filter((p) => p && Date.now() - p.planted >= p.growMs).length;
   return (
     <div className="scene px" style={{ backgroundImage: `url(${backgroundUrl(info.scene)})` }}>
+      <ActionScene active={active} actionKey={actionKey} />
       <div className="scene-top">
         <Sprite name={SKILL_BY_ID[info.skill].icon} size={22} />
         <div className="grow">
@@ -41,16 +42,11 @@ export function Scene({ active, pops, status }: { active: Active; pops: Pop[]; s
           <div className="small">{SKILL_BY_ID[info.skill].name} lvl {pr.level}</div>
           <XpBar into={pr.into} span={pr.span} />
         </div>
-      </div>
-      {info.item && (
-        <div className="scene-item">
-          <ItemIcon id={info.item} size={56} className="bob" />
-          <span className="pill">{ITEMS[info.item].name} ×{have}</span>
+        <div className="scene-pills">
+          {info.item && <span className="pill"><ItemIcon id={info.item} size={16} /> ×{have}</span>}
+          {world.furnace && <span className="pill"><Sprite name="flame" size={14} /> {world.furnace.done}/{world.furnace.total}</span>}
+          {readyPlots > 0 && <span className="pill green"><Sprite name="sprout" size={14} /> {readyPlots}</span>}
         </div>
-      )}
-      <div className="scene-strip">
-        {world.furnace && <span className="pill"><Sprite name="flame" size={14} /> Furnace {world.furnace.done}/{world.furnace.total}</span>}
-        {readyPlots > 0 && <span className="pill green"><Sprite name="sprout" size={14} /> {readyPlots} ready</span>}
       </div>
       {status && <div className="scene-status">{status}</div>}
       <div className="splat-layer">

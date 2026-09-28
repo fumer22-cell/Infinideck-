@@ -4,6 +4,8 @@ import { comboMultiplier } from '../../game/combat';
 import type { Biome, EnemyState } from '../../game/enemies';
 import { RELICS, type RelicId } from '../../game/relics';
 import { Sprite } from '../common';
+import type { HeroLook } from '../../art/hero';
+import { HeroView } from '../HeroView';
 
 export interface Fx {
   id: number;
@@ -17,8 +19,10 @@ export interface Fx {
   delay: number;
 }
 
-export function Arena({ biome, enemy, combo, relics, hud, fx, enemyHurt, playerHurt, enemyDead, player, playerSprite, spawnKey = 0 }: {
+export function Arena({ biome, enemy, combo, relics, hud, fx, enemyHurt, playerHurt, enemyDead, player, look, attackKey = 0, spawnKey = 0 }: {
   spawnKey?: number;
+  look: HeroLook;
+  attackKey?: number;
   biome: Biome;
   enemy: EnemyState | null;
   combo: number;
@@ -29,7 +33,6 @@ export function Arena({ biome, enemy, combo, relics, hud, fx, enemyHurt, playerH
   playerHurt: boolean;
   enemyDead: boolean;
   player: { hp: number; maxHp: number; block: number };
-  playerSprite: string;
 }) {
   const e = enemy;
   const p = player;
@@ -68,7 +71,7 @@ export function Arena({ biome, enemy, combo, relics, hud, fx, enemyHurt, playerH
       )}
 
       <div className={`player-wrap ${playerHurt ? 'hurt' : ''}`}>
-        <Sprite name={playerSprite} size={64} />
+        <HeroView look={look} attackKey={attackKey} size={96} />
         <div className="player-stats">
           <div className="hpbar">
             <i style={{ width: `${Math.max(0, (p.hp / p.maxHp) * 100)}%` }} />

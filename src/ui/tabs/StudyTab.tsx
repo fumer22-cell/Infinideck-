@@ -23,6 +23,7 @@ export function StudyTab() {
   const [practiceCard, setPracticeCard] = useState<CardRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [pops, setPops] = useState<Pop[]>([]);
+  const [actionKey, setActionKey] = useState(0);
   const lastPractice = useRef<number | null>(null);
 
   const load = async () => {
@@ -95,6 +96,7 @@ export function StudyTab() {
         return r;
       });
       if (!res.ok) app.toast(res.reason ?? 'Nothing happens.');
+      else setActionKey((k) => k + 1);
       const xp = { ...scaleXp(res.xp, isPractice), scholarship: rec.scholarship };
       addPops(res.items, Object.entries(res.xp).map(([, v]) => ({ text: `+${Math.round(isPractice ? (v ?? 0) / 2 : v ?? 0)} xp`, tone: 'xp' })));
       if (Object.keys(res.items).some((id) => ['gem', 'misc'].includes(ITEMS[id].kind))) sfx.coin();
@@ -112,7 +114,7 @@ export function StudyTab() {
 
   return (
     <div className="screen study">
-      <Scene active={active} pops={pops} status={blocked} />
+      <Scene active={active} pops={pops} status={blocked} actionKey={actionKey} />
       {blocked ? (
         <div className="stone col center">
           <div className="serif" style={{ fontSize: 16 }}>{blocked}</div>

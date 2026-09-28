@@ -280,9 +280,9 @@ label { display: block; font-size: 11px; color: var(--gold); margin: 6px 0 4px; 
 .death h1 { font-size: 30px; color: var(--blood-hi); text-shadow: 3px 3px 0 #000; text-align: center; }
 
 /* fireworks / level up */
-.fanfare { position: absolute; inset: 0; z-index: 40; pointer-events: none; display: flex; align-items: flex-start; justify-content: center; padding-top: 30%; }
+.fanfare { position: absolute; inset: 0; z-index: 40; pointer-events: none; display: flex; align-items: flex-start; justify-content: center; padding-top: calc(10px + var(--safe-t)); }
 .fanfare canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.fanfare .banner { position: relative; padding: 10px 16px; text-align: center; animation: pop 0.4s steps(4); pointer-events: auto; }
+.fanfare .banner { position: relative; padding: 8px 14px; text-align: center; animation: pop 0.4s steps(4); pointer-events: none; }
 .fanfare .banner .lvl { font-size: 20px; color: var(--gold-hi); text-shadow: 2px 2px 0 #000; }
 
 .toast { position: fixed; left: 50%; bottom: calc(24px + var(--safe-b)); transform: translateX(-50%); z-index: 50; padding: 10px 14px; font-size: 12px; max-width: 90%; text-align: center; animation: fadeIn 0.2s; }
@@ -362,3 +362,13 @@ button.list-item:disabled { cursor: default; }
 .hand-card .ascend { position: absolute; bottom: -8px; font-size: 8px; background: #7a2aaa; color: #fff; padding: 1px 4px; border: 1px solid #000; animation: bob 1s steps(2) infinite; }
 @keyframes spawnIn { from { opacity: 0; transform: translateY(-16px); } }
 .pill.ascend-pill { background: #7a2aaa; color: #fff; }
+.scene { padding: 0; min-height: 0; }
+.action-canvas { display: block; width: 100%; aspect-ratio: 96 / 54; max-width: 100%; }
+.scene .scene-top { position: absolute; top: 6px; left: 6px; right: 6px; }
+.scene .scene-strip { position: absolute; left: 6px; right: 6px; bottom: 6px; }
+.scene .scene-status { bottom: 34px; }
+.hero-canvas { display: block; filter: drop-shadow(2px 2px 0 rgba(0,0,0,0.6)); }
+.player-wrap img, .player-wrap canvas { image-rendering: pixelated; }
+.scene .scene-top { background: rgba(0,0,0,0.5); padding: 5px 6px; }
+.scene-pills { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.scene-pills .pill { font-size: 10px; padding: 2px 5px; }

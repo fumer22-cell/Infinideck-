@@ -41,7 +41,7 @@ export function Fanfare({ ups, onDone }: { ups: LevelUp[]; onDone: () => void })
       if (frame < 200) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    const t = setTimeout(onDone, 3200);
+    const t = setTimeout(onDone, 2400);
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(t);
@@ -49,7 +49,7 @@ export function Fanfare({ ups, onDone }: { ups: LevelUp[]; onDone: () => void })
   }, [onDone]);
 
   return (
-    <div className="fanfare" onClick={onDone}>
+    <div className="fanfare" aria-live="polite">
       <canvas ref={cv} className="px" />
       <div className="banner stone">
         <h2>Congratulations!</h2>
