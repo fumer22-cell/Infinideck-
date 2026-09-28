@@ -150,7 +150,115 @@ function drawKeep(ctx: CanvasRenderingContext2D, rng: () => number) {
   for (let i = 0; i < 10; i++) px(ctx, Math.floor(rng() * W), 112 + Math.floor(rng() * 44), 4, 2, '#3d3733');
 }
 
-export function backgroundUrl(biome: Biome | 'town'): string {
+
+function drawMine(ctx: CanvasRenderingContext2D, rng: () => number) {
+  for (let y = 0; y < H; y++) px(ctx, 0, y, W, 1, `rgb(${22 + (y / H) * 16},${18 + (y / H) * 12},${16 + (y / H) * 10})`);
+  // rough cave walls
+  for (let i = 0; i < 260; i++) {
+    const x = Math.floor(rng() * W);
+    const y = Math.floor(rng() * 120);
+    px(ctx, x, y, 3 + Math.floor(rng() * 5), 2 + Math.floor(rng() * 3), rng() < 0.5 ? '#2e2824' : '#1a1614');
+  }
+  // ore glints
+  const glints = ['#c87a3a', '#7ae0e8', '#a8a8a0', '#6ab07a', '#7a8ad0'];
+  for (let i = 0; i < 26; i++) px(ctx, Math.floor(rng() * W), Math.floor(rng() * 110), 2, 2, glints[Math.floor(rng() * glints.length)]);
+  // support beams
+  for (const bx of [10, 82]) {
+    px(ctx, bx, 30, 4, 90, '#4a3018');
+    px(ctx, bx + 1, 30, 1, 90, '#6a4a2a');
+  }
+  px(ctx, 6, 28, 84, 4, '#4a3018');
+  torch(ctx, 22, 56);
+  torch(ctx, 74, 56);
+  // cart rails
+  for (let y = 118; y < H; y++) px(ctx, 0, y, W, 1, `rgb(${34 + (y - 118)},${28 + (y - 118) * 0.6},${24})`);
+  for (let x = 0; x < W; x += 8) px(ctx, x, 140, 5, 2, '#3a2616');
+  px(ctx, 0, 138, W, 1, '#6a6a70');
+  px(ctx, 0, 143, W, 1, '#6a6a70');
+}
+
+function drawForest(ctx: CanvasRenderingContext2D, rng: () => number) {
+  for (let y = 0; y < 90; y++) px(ctx, 0, y, W, 1, `rgb(${20 + (y / 90) * 20},${26 + (y / 90) * 30},${30 + (y / 90) * 12})`);
+  ctx.fillStyle = 'rgba(230,220,180,0.5)';
+  ctx.beginPath();
+  ctx.arc(74, 20, 7, 0, Math.PI * 2);
+  ctx.fill();
+  const tree = (x: number, base: number, h: number, c: string, t: string) => {
+    px(ctx, x - 1, base - h * 0.4, 3, h * 0.4, t);
+    for (let i = 0; i < h * 0.7; i++) {
+      const w = Math.round((i / (h * 0.7)) * h * 0.35) + 1;
+      px(ctx, x - w, base - h + i, w * 2 + 1, 1, c);
+    }
+  };
+  for (let i = 0; i < 12; i++) tree(Math.floor(rng() * W), 98, 30 + rng() * 20, '#12200f', '#0e0a08');
+  for (let i = 0; i < 7; i++) tree(Math.floor(rng() * W), 124, 44 + rng() * 26, '#1e3a1a', '#2a1a10');
+  for (let y = 110; y < H; y++) px(ctx, 0, y, W, 1, `rgb(${24 + (y - 110) * 0.3},${36 + (y - 110) * 0.3},${18})`);
+  for (let i = 0; i < 40; i++) px(ctx, Math.floor(rng() * W), 112 + Math.floor(rng() * 48), 1, 3, '#4a7a3a');
+  // stumps
+  for (const sx of [20, 64]) {
+    px(ctx, sx, 134, 10, 8, '#5a3a1a');
+    px(ctx, sx, 133, 10, 2, '#b08a5a');
+  }
+}
+
+function drawRiver(ctx: CanvasRenderingContext2D, rng: () => number) {
+  for (let y = 0; y < 70; y++) px(ctx, 0, y, W, 1, `rgb(${30 + y * 0.5},${34 + y * 0.6},${52 + y * 0.5})`);
+  for (let x = 0; x < W; x++) {
+    const h = 8 + Math.floor(Math.sin(x * 0.12) * 4 + rng() * 3);
+    px(ctx, x, 70 - h, 1, h, '#1a2418');
+  }
+  px(ctx, 0, 70, W, 14, '#2a3a1e');
+  for (let y = 84; y < H; y++) px(ctx, 0, y, W, 1, `rgb(${20 + (y - 84) * 0.1},${40 + (y - 84) * 0.25},${62 + (y - 84) * 0.3})`);
+  for (let i = 0; i < 70; i++) px(ctx, Math.floor(rng() * W), 86 + Math.floor(rng() * 74), 4 + Math.floor(rng() * 8), 1, rng() < 0.5 ? '#5a8aaa' : '#2a4a6a');
+  // jetty
+  px(ctx, 0, 118, 40, 4, '#5a3a1a');
+  for (let x = 2; x < 40; x += 9) px(ctx, x, 122, 2, 20, '#3a2616');
+  for (let x = 0; x < 40; x += 5) px(ctx, x, 118, 1, 4, '#3a2616');
+}
+
+function drawForge(ctx: CanvasRenderingContext2D, rng: () => number) {
+  bricks(ctx, rng, 0, 116, ['#3a2a22', '#42302a', '#34261e', '#4a3428'], '#1a120e');
+  // furnace mouth
+  px(ctx, 30, 44, 36, 44, '#1a120e');
+  for (let i = 0; i < 12; i++) {
+    const w = Math.round(Math.sqrt(144 - (12 - i) ** 2));
+    px(ctx, 48 - w, 32 + i, w * 2, 1, '#1a120e');
+  }
+  const glow = ctx.createRadialGradient(48, 74, 2, 48, 74, 40);
+  glow.addColorStop(0, 'rgba(255,170,60,0.9)');
+  glow.addColorStop(0.4, 'rgba(224,90,30,0.5)');
+  glow.addColorStop(1, 'rgba(224,90,30,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(8, 30, 80, 80);
+  for (let i = 0; i < 20; i++) px(ctx, 34 + Math.floor(rng() * 28), 70 + Math.floor(rng() * 16), 2, 2, rng() < 0.5 ? '#fff0a0' : '#e0782a');
+  for (let y = 116; y < H; y++) px(ctx, 0, y, W, 1, `rgb(${40 - (y - 116) * 0.2},${30 - (y - 116) * 0.2},${24})`);
+  // anvil
+  px(ctx, 62, 124, 22, 4, '#5a5550');
+  px(ctx, 67, 128, 12, 3, '#3a3531');
+  px(ctx, 65, 131, 16, 6, '#3a3531');
+}
+
+function drawFarm(ctx: CanvasRenderingContext2D, rng: () => number) {
+  for (let y = 0; y < 70; y++) px(ctx, 0, y, W, 1, `rgb(${36 + y * 0.6},${30 + y * 0.4},${46 + y * 0.2})`);
+  ctx.fillStyle = 'rgba(240,160,80,0.6)';
+  ctx.beginPath();
+  ctx.arc(20, 62, 12, 0, Math.PI * 2);
+  ctx.fill();
+  for (let x = 0; x < W; x++) px(ctx, x, 60 + Math.floor(Math.sin(x * 0.08) * 3), 1, 12, '#1e2a16');
+  for (let y = 70; y < H; y++) px(ctx, 0, y, W, 1, `rgb(${46 + (y - 70) * 0.1},${34 + (y - 70) * 0.05},${22})`);
+  for (let y = 80; y < H; y += 12) {
+    px(ctx, 0, y, W, 4, '#3a2616');
+    for (let x = 3; x < W; x += 7) if (rng() < 0.8) px(ctx, x, y - 3, 2, 3, rng() < 0.3 ? '#8ab04a' : '#4a7a3a');
+  }
+  // fence
+  for (let x = 0; x < W; x += 10) px(ctx, x, 64, 2, 12, '#5a3a1a');
+  px(ctx, 0, 67, W, 1, '#6a4a2a');
+  px(ctx, 0, 72, W, 1, '#6a4a2a');
+}
+
+export type Scene = Biome | 'town' | 'mine' | 'forest' | 'river' | 'forge' | 'farm';
+
+export function backgroundUrl(biome: Scene): string {
   const hit = cache.get(biome);
   if (hit) return hit;
   if (typeof document === 'undefined') return '';
@@ -161,6 +269,11 @@ export function backgroundUrl(biome: Biome | 'town'): string {
   const rng = mulberry(biome.length * 977);
   if (biome === 'crypt') drawCrypt(ctx, rng);
   else if (biome === 'bog') drawBog(ctx, rng);
+  else if (biome === 'mine') drawMine(ctx, rng);
+  else if (biome === 'forest') drawForest(ctx, rng);
+  else if (biome === 'river') drawRiver(ctx, rng);
+  else if (biome === 'forge') drawForge(ctx, rng);
+  else if (biome === 'farm') drawFarm(ctx, rng);
   else drawKeep(ctx, rng);
   // vignette
   const v = ctx.createRadialGradient(W / 2, H / 2, 30, W / 2, H / 2, 100);

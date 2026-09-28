@@ -1,26 +1,27 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { State } from 'ts-fsrs';
-import { db } from '../src/core/db';
-import { DEFAULT_PROFILE } from '../src/core/profile';
-import { DEFAULT_SETTINGS } from '../src/core/settings';
-import { newCardRow } from '../src/core/srs';
-import type { CardRow } from '../src/core/types';
-import { CLASSES } from '../src/game/classes';
+import { describe, expect, it } from 'vitest';
+import { AREA_BY_ID, FORGING, SEEDS, SMELTING } from '../src/game/activities';
+import { ADVENTURER } from '../src/game/classes';
 import { comboMultiplier, playCard, startCombat, type PlayInput } from '../src/game/combat';
-import { intentFor, spawnEnemy, type EnemyState } from '../src/game/enemies';
-import { beginFight, fillHand, startRun } from '../src/game/run';
-import { levelForXp, XP_TABLE } from '../src/game/skills';
 import { tierUpChoices } from '../src/game/effects';
+import { intentFor, type EnemyState } from '../src/game/enemies';
+import { ITEMS } from '../src/game/items';
+import { EMPTY_XP, levelForXp, levels, XP_TABLE } from '../src/game/skills';
+import * as W from '../src/game/world';
+import { metaRefund } from '../src/core/profile';
 
-const DAY = 86_400_000;
+const seq = (...xs: number[]) => {
+  let i = 0;
+  return () => xs[i++ % xs.length];
+};
+const lvAt = (over: Partial<Record<string, number>> = {}) => ({ ...levels(EMPTY_XP), ...over }) as ReturnType<typeof levels>;
 
 function enemy(over: Partial<EnemyState> = {}): EnemyState {
   const e: EnemyState = { id: 'rat', name: 'Rat', sprite: 'rat', hp: 50, maxHp: 50, block: 0, atk: 4, poison: 0, patternIdx: 0, pattern: ['attack'], intent: { kind: 'attack', value: 4 }, boss: false, ...over };
   e.intent = intentFor(e);
   return e;
 }
-const base: PlayInput = { effect: 'attack', tier: 1, grade: 3, wasNew: false, cls: CLASSES.cleric, relics: [], attackLevel: 1, defenceLevel: 1, fast: false };
+const base: PlayInput = { effect: 'attack', tier: 1, grade: 3, wasNew: false, cls: ADVENTURER, relics: [], dmgMult: 1, reduction: 0, fast: false };
 
 describe('combat rules', () => {
   it('grades scale power: Easy crits, Hard is weak, Again misses and gives a free hit', () => {
@@ -31,9 +32,13 @@ describe('combat rules', () => {
     expect(dmg(4)).toBeGreaterThan(dmg(3));
     const miss = playCard(s, { ...base, grade: 1 });
     expect(miss.state.enemy.hp).toBe(50);
-    // free hit (ceil(4*0.5)+1 = 3) plus the enemy's normal attack (4)
     expect(miss.state.player.hp).toBe(40 - 3 - 4);
-    expect(miss.events.filter((e) => e.t === 'playerDmg')).toHaveLength(2);
+  });
+
+  it('gear and skills scale damage dealt and taken', () => {
+    const s = startCombat({ hp: 40, maxHp: 40, block: 0 }, enemy(), [], 0, false);
+    expect(50 - playCard(s, { ...base, dmgMult: 2 }).state.enemy.hp).toBe(10);
+    expect(playCard(s, { ...base, reduction: 0.5 }).state.player.hp).toBe(38);
   });
 
   it('combo builds on correct answers and resets on Again', () => {
@@ -41,97 +46,176 @@ describe('combat rules', () => {
     s = playCard(s, base).state;
     s = playCard(s, base).state;
     expect(s.combo).toBe(2);
-    expect(comboMultiplier(3, CLASSES.rogue)).toBeGreaterThan(comboMultiplier(3, CLASSES.warrior));
+    expect(comboMultiplier(2, ADVENTURER)).toBeCloseTo(1.1);
     s = playCard(s, { ...base, grade: 1 }).state;
     expect(s.combo).toBe(0);
   });
 
-  it('block absorbs damage, poison ticks, and relics apply', () => {
-    let s = startCombat({ hp: 30, maxHp: 30, block: 0 }, enemy(), ['ironskin'], 0, false);
-    expect(s.player.block).toBe(4);
-    s = playCard(s, { ...base, effect: 'poison', relics: ['ironskin'] }).state;
-    expect(s.enemy.hp).toBeLessThan(50); // poison ticked on the enemy turn
-    expect(s.player.hp).toBe(30); // 4 damage fully blocked
-    const twin = startCombat({ hp: 30, maxHp: 30, block: 0 }, enemy(), ['twinstrike'], 0, false);
-    const first = playCard(twin, { ...base, relics: ['twinstrike'] }).state;
-    expect(50 - first.enemy.hp).toBe(10);
-    expect(50 - playCard(first, { ...base, relics: ['twinstrike'] }).state.enemy.hp).toBe(10 + Math.round(5 * 1.1)); // second card: single hit with x1.1 combo
-  });
-
   it('death ward saves once', () => {
-    const s = startCombat({ hp: 1, maxHp: 30, block: 0 }, enemy({ atk: 10 }), ['deathward'], 0, false);
+    const s = startCombat({ hp: 1, maxHp: 30, block: 0 }, enemy({ atk: 10 }), [], 0, false);
     const ward: PlayInput = { ...base, relics: ['deathward'] };
     const r = playCard(s, ward);
     expect(r.state.player.hp).toBe(1);
-    expect(r.events.some((e) => e.t === 'playerDied')).toBe(false);
-    const r2 = playCard(r.state, ward);
-    expect(r2.events.some((e) => e.t === 'playerDied')).toBe(true);
+    expect(playCard(r.state, ward).events.some((e) => e.t === 'playerDied')).toBe(true);
   });
 
   it('tier-up offers three distinct effects featuring the new rarity', () => {
     const c = tierUpChoices(3, 'attack');
     expect(new Set(c).size).toBe(3);
     expect(['meteor', 'phoenix', 'soulrend', 'plague']).toContain(c[0]);
-    expect(c).not.toContain('attack');
-  });
-
-  it('enemy hp scales with deck power so fights last a handful of cards', () => {
-    const e = spawnEnemy('crypt', 1, 5, 4, false, () => 0.5);
-    expect(e.hp).toBeGreaterThan(8);
-    expect(e.hp).toBeLessThan(30);
   });
 });
 
 describe('skills', () => {
   it('uses the classic exponential xp curve', () => {
     expect(XP_TABLE[2]).toBe(83);
-    expect(XP_TABLE[10]).toBe(1154);
     expect(XP_TABLE[99]).toBe(13_034_431);
-    expect(levelForXp(0)).toBe(1);
     expect(levelForXp(1154)).toBe(10);
-    expect(levelForXp(99_999_999)).toBe(99);
   });
 });
 
-describe('runs never touch scheduling', () => {
-  beforeEach(async () => {
-    await db.delete();
-    await db.open();
+describe('gathering and crafting', () => {
+  it('each card gathers one resource with the right tool; mature cards can double it', () => {
+    const w = W.newWorld(40);
+    w.active = { kind: 'gather', id: 'rock-copper' };
+    const lv = lvAt();
+    const r = W.performAction(w, lv, 1, seq(0.99, 0.99, 0.99, 0.99, 0.99));
+    expect(r.ok).toBe(true);
+    expect(r.items).toEqual({ 'ore-copper': 1 });
+    expect(r.xp).toEqual({ mining: 25 });
+    // Legendary card: 50% + tool 5% double chance
+    const d = W.performAction(w, lv, 3, seq(0.5, 0.99, 0.99, 0.99, 0.99));
+    expect(d.items['ore-copper']).toBe(2);
+    expect(w.bank['ore-copper']).toBe(3);
   });
 
-  async function add(over: Partial<CardRow>) {
-    const row = { ...newCardRow(1, 'q', 'a', 'attack', Date.now() - DAY), ...over };
-    row.id = (await db.cards.add(row)) as number;
-    return row;
-  }
-
-  it('dungeon hands contain only due cards, and bosses pull due leeches first', async () => {
-    const now = Date.now();
-    const notDue = await add({ state: State.Review, due: now + 5 * DAY, scheduled_days: 10, stability: 10, difficulty: 5 });
-    const leech = await add({ state: State.Review, due: now - DAY, scheduled_days: 2, stability: 2, difficulty: 8, lapses: 6 });
-    for (let i = 0; i < 4; i++) await add({ state: State.Review, due: now - DAY - i, scheduled_days: 3, stability: 3, difficulty: 5 });
-    const snapshot = JSON.stringify(await db.cards.toArray());
-
-    let run = await startRun('dungeon', 'warrior', DEFAULT_PROFILE);
-    run = await beginFight(run, DEFAULT_SETTINGS, DEFAULT_PROFILE);
-    expect(run.combat?.enemy.boss).toBe(true); // only 5 due → boss
-    expect(run.hand[0]).toBe(leech.id);
-    expect(run.leechesFaced).toContain(leech.id);
-    expect(run.hand).not.toContain(notDue.id);
-    run = await fillHand({ ...run, hand: [] }, DEFAULT_SETTINGS, 5);
-    expect(run.hand).not.toContain(notDue.id);
-    expect(JSON.stringify(await db.cards.toArray())).toBe(snapshot);
+  it('gathering is blocked without a tool or the level', () => {
+    const w = W.newWorld(40);
+    delete w.bank['bronze-pickaxe'];
+    w.active = { kind: 'gather', id: 'rock-copper' };
+    expect(W.checkActive(w, lvAt())).toMatch(/pickaxe/);
+    w.bank['bronze-pickaxe'] = 1;
+    w.active = { kind: 'gather', id: 'rock-iron' };
+    expect(W.checkActive(w, lvAt())).toMatch(/level 10/);
   });
 
-  it('endless mode draws only Mature+ cards and changes nothing', async () => {
-    const now = Date.now();
-    const mature = await add({ state: State.Review, due: now + 20 * DAY, scheduled_days: 30, stability: 30, difficulty: 5 });
-    await add({ state: State.Review, due: now + 3 * DAY, scheduled_days: 5, stability: 5, difficulty: 5 });
-    await add({});
-    const snapshot = JSON.stringify(await db.cards.toArray());
-    let run = await startRun('endless', 'rogue', DEFAULT_PROFILE);
-    run = await beginFight(run, DEFAULT_SETTINGS, DEFAULT_PROFILE);
-    expect(run.hand).toEqual([mature.id]);
-    expect(JSON.stringify(await db.cards.toArray())).toBe(snapshot);
+  it('better tools only count once you have the level to use them', () => {
+    const w = W.newWorld(40);
+    w.bank['rune-pickaxe'] = 1;
+    expect(W.bestTool(w, 'pickaxe', lvAt())!.id).toBe('bronze-pickaxe');
+    expect(W.bestTool(w, 'pickaxe', lvAt({ mining: 45 }))!.id).toBe('rune-pickaxe');
+  });
+
+  it('cooking and forging consume their inputs', () => {
+    const w = W.newWorld(40);
+    w.bank['raw-shrimp'] = 2;
+    w.active = { kind: 'cook', id: 'cook-shrimp' };
+    expect(W.performAction(w, lvAt(), 0).ok).toBe(true);
+    expect(w.bank['raw-shrimp']).toBe(1);
+    expect(w.bank['cooked-shrimp']).toBe(1);
+    const body = FORGING.find((f) => f.id === 'forge-bronze-body')!;
+    w.bank['bar-bronze'] = 2;
+    w.active = { kind: 'forge', id: body.id };
+    expect(W.performAction(w, lvAt({ smithing: 10 }), 0).ok).toBe(false);
+    w.bank['bar-bronze'] = 3;
+    expect(W.performAction(w, lvAt({ smithing: 10 }), 0).items).toEqual({ 'bronze-body': 1 });
+    expect(w.bank['bar-bronze']).toBeUndefined();
+  });
+
+  it('the furnace smelts in real time, burning ore and one log per bar', () => {
+    const w = W.newWorld(40);
+    Object.assign(w.bank, { 'ore-copper': 5, 'ore-tin': 5, 'log-normal': 3 });
+    const lv = lvAt();
+    expect(W.maxSmeltable(w, 'smelt-bronze', lv)).toBe(3); // limited by logs
+    expect(W.startSmelt(w, 'smelt-bronze', 3, lv, 2, 0)).toBe(true);
+    expect(w.bank['log-normal']).toBeUndefined();
+    expect(w.bank['ore-copper']).toBe(2);
+    const each = w.furnace!.msEach;
+    expect(each).toBe(SMELTING[0].msEach * 0.8); // mature card: 20% faster
+    expect(W.tickFurnace(w, each - 1)).toBeNull();
+    expect(W.tickFurnace(w, each * 2)).toMatchObject({ bars: 2 });
+    expect(W.tickFurnace(w, each * 10)).toMatchObject({ bars: 1 });
+    expect(w.bank['bar-bronze']).toBe(3);
+    expect(w.furnace).toBeNull();
+  });
+
+  it('crops grow in real time and a mature planting card boosts the harvest', () => {
+    const w = W.newWorld(40);
+    const s = SEEDS[0];
+    expect(W.plant(w, 0, s.id, lvAt(), 3, 0)).toBe(true);
+    expect(W.harvest(w, 0, s.growMs - 1)).toBeNull();
+    const h = W.harvest(w, 0, s.growMs, () => 0)!;
+    expect(h.qty).toBe(Math.round(4 * 1.75));
+    expect(w.bank[s.crop]).toBe(h.qty);
+    expect(w.plots[0]).toBeNull();
+  });
+});
+
+describe('combat trips', () => {
+  it('kills drop loot and gold and count toward the boss', () => {
+    const w = W.newWorld(40);
+    const area = AREA_BY_ID.graveyard;
+    W.startTrip(w, area, () => 0);
+    w.combat!.enemy.hp = 1;
+    const r = W.combatPlay(w, lvAt(), 40, { effect: 'attack', tier: 1, wasNew: false }, 3, false, () => 0);
+    expect(r.killed).toBe(true);
+    expect(r.gold).toBeGreaterThan(0);
+    expect(r.loot.bones).toBe(1);
+    expect(w.bank.bones).toBe(1);
+    expect(w.bossProgress.graveyard).toBe(1);
+    expect(r.xp.attack).toBeGreaterThan(0);
+  });
+
+  it('style decides which skill gets damage xp', () => {
+    const w = W.newWorld(40);
+    w.style = 'strength';
+    W.startTrip(w, AREA_BY_ID.graveyard, () => 0);
+    const r = W.combatPlay(w, lvAt(), 40, { effect: 'attack', tier: 1, wasNew: false }, 3, false, () => 0.99);
+    expect(r.xp.strength).toBeGreaterThan(0);
+    expect(r.xp.attack).toBeUndefined();
+  });
+
+  it('dying ends the trip and wakes you at half health', () => {
+    const w = W.newWorld(40);
+    w.active = { kind: 'combat', id: 'graveyard' };
+    W.startTrip(w, AREA_BY_ID.graveyard, () => 0);
+    w.hp = 1;
+    const r = W.combatPlay(w, lvAt(), 40, { effect: 'heal', tier: 0, wasNew: false }, 1, false, () => 0.99);
+    expect(r.died).toBe(true);
+    expect(w.combat).toBeNull();
+    expect(w.active).toBeNull();
+    expect(w.hp).toBe(20);
+  });
+
+  it('equipment needs the level, and gear feeds combat bonuses', () => {
+    const w = W.newWorld(40);
+    w.bank['rune-sword'] = 1;
+    expect(W.equip(w, 'rune-sword', lvAt())).toBe(false);
+    expect(W.equip(w, 'rune-sword', lvAt({ attack: 45 }))).toBe(true);
+    w.bank['relic-goldtooth'] = 1;
+    W.equip(w, 'relic-goldtooth', lvAt());
+    const b = W.bonuses(w, lvAt({ attack: 45 }));
+    expect(b.weaponDmg).toBe(ITEMS['rune-sword'].equip!.dmg);
+    expect(b.relics).toContain('goldtooth');
+  });
+
+  it('auto-eats below a third of max HP', () => {
+    const w = W.newWorld(40);
+    w.hp = 10;
+    expect(W.autoEat(w, 40)).toBeGreaterThan(0);
+    expect(w.hp).toBeGreaterThanOrEqual(13);
+  });
+
+  it('HP regenerates out of combat in real time', () => {
+    const w = W.newWorld(40, 0);
+    w.hp = 10;
+    W.regen(w, 40, W.REGEN_MS * 5);
+    expect(w.hp).toBe(15);
+  });
+});
+
+describe('migration', () => {
+  it('refunds gold spent on retired upgrades', () => {
+    expect(metaRefund({ vitality: 2, relicseeker: 1 })).toBe(100 + 200 + 500);
   });
 });

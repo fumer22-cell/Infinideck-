@@ -3,7 +3,6 @@ import type { ClassDef } from './classes';
 import { GRADE_MULT, TIER_POWER } from './effects';
 import { intentFor, type EnemyState } from './enemies';
 import type { RelicId } from './relics';
-import { attackMult, defenceReduction } from './skills';
 
 export interface PlayerState { hp: number; maxHp: number; block: number }
 
@@ -22,8 +21,10 @@ export interface PlayInput {
   wasNew: boolean;
   cls: ClassDef;
   relics: RelicId[];
-  attackLevel: number;
-  defenceLevel: number;
+  /** damage multiplier from skills and weapon */
+  dmgMult: number;
+  /** fraction of incoming damage ignored (Defence level + armour) */
+  reduction: number;
   fast: boolean; // speed bonus earned (caller guarantees never for New cards)
 }
 
@@ -104,7 +105,7 @@ export function playCard(prev: CombatState, input: PlayInput): PlayResult {
     ev.push({ t: 'block', amount: amt });
   };
   const hurtPlayer = (raw: number, pierce = false) => {
-    let amt = Math.max(0, Math.round(raw * (1 - defenceReduction(input.defenceLevel))));
+    let amt = Math.max(0, Math.round(raw * (1 - Math.min(0.75, input.reduction))));
     if (!pierce && s.player.block > 0) {
       const absorbed = Math.min(s.player.block, amt);
       s.player.block -= absorbed;
@@ -135,7 +136,7 @@ export function playCard(prev: CombatState, input: PlayInput): PlayResult {
     s.combo += 1;
     const crit = grade === 4;
     const scale = GRADE_MULT[grade] * comboMultiplier(s.combo, cls) * (input.fast ? 1.25 : 1) * (crit && relics.includes('focuscrystal') ? 1.5 : 1);
-    const dmg = scale * cls.dmgMult * attackMult(input.attackLevel);
+    const dmg = scale * cls.dmgMult * input.dmgMult;
     const sup = scale * cls.healMult;
     const times = s.cardsPlayed === 0 && relics.includes('twinstrike') ? 2 : 1;
     for (let i = 0; i < times; i++) {

@@ -72,7 +72,7 @@ export function DeckView({ deckId }: { deckId: number }) {
           )}
           <div className="grid2">
             <button className="btn green" onClick={() => go({ name: 'editCard', deckId })}>+ Add card</button>
-            <button className="btn" disabled={!due} onClick={() => go({ name: 'study', deckId })}>Study ({due})</button>
+            <button className="btn" disabled={!due} onClick={() => go({ name: 'study' })}>Study ({due})</button>
             <button className="btn stone" onClick={() => go({ name: 'import', deckId })}>Import</button>
             <button className="btn red" onClick={remove}>Delete</button>
           </div>

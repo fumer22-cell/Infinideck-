@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { spriteUrl } from '../art/sprites';
 import { db } from '../core/db';
+import { ITEMS } from '../game/items';
 import { useApp } from './context';
 import { sfx } from './sfx';
 
@@ -73,4 +74,18 @@ export function CardFace({ front, back, image, revealed }: { front: string; back
 
 export function Toast({ msg }: { msg: string }) {
   return <div className="toast stone">{msg}</div>;
+}
+
+export function ItemIcon({ id, size = 32, className = '' }: { id: string; size?: number; className?: string }) {
+  const d = ITEMS[id];
+  if (!d) return null;
+  return <img className={`px ${className}`} src={spriteUrl(d.icon, d.tint)} width={size} height={size} alt={d.name} title={d.name} draggable={false} />;
+}
+
+export function XpBar({ into, span }: { into: number; span: number }) {
+  return (
+    <div className="xpbar">
+      <i style={{ width: `${Math.min(100, (into / span) * 100)}%` }} />
+    </div>
+  );
 }

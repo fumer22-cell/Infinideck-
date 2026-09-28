@@ -1,17 +1,8 @@
 import { db } from '../core/db';
-import { addXp, registerClear, SCHOLARSHIP_XP } from '../core/profile';
+import { registerClear } from '../core/profile';
 import { countDue, dayKey, dayStart, State } from '../core/srs';
 import type { EffectId, Tier } from '../core/types';
 import type { AppCtx } from './context';
-
-/** Scholarship xp + review stats after any real (scheduled) review. */
-export async function rewardReview(app: AppCtx, grade: 1 | 2 | 3 | 4, tier: Tier) {
-  const ups = await app.updateProfile((p) => {
-    p.stats.reviews++;
-    return addXp(p, { scholarship: SCHOLARSHIP_XP[grade] * (1 + tier * 0.25) });
-  });
-  if (ups.length) app.celebrate(ups);
-}
 
 /** If nothing is due any more today, count the day toward the streak. */
 export async function checkQueueCleared(app: AppCtx): Promise<boolean> {
@@ -26,7 +17,7 @@ export async function checkQueueCleared(app: AppCtx): Promise<boolean> {
   await app.updateProfile((p) => {
     fresh = registerClear(p, today, yesterday);
   });
-  if (fresh) app.toast('Due queue cleared! A streak chest awaits in town.');
+  if (fresh) app.toast('Due queue cleared! A streak chest awaits in Journey.');
   return fresh;
 }
 

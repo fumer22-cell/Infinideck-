@@ -1,7 +1,7 @@
 # Grimrecall
 
-A spaced-repetition flashcard app disguised as a dark-fantasy dungeon crawler.
-Today's due cards are today's dungeon. Remember, or perish.
+A spaced-repetition flashcard app disguised as an old-school skilling MMO.
+Pick a skill, then study: every card you answer mines, chops, fishes, cooks, forges or fights.
 
 - **Installable PWA**: works offline, add to home screen, portrait and thumb-first.
 - **Real FSRS scheduling** via [`ts-fsrs`](https://github.com/open-spaced-repetition/ts-fsrs), the same algorithm modern Anki uses.
@@ -12,41 +12,41 @@ Today's due cards are today's dungeon. Remember, or perish.
 The game **never** changes scheduling and **never** pulls cards early.
 
 - All scheduling goes through `src/core/srs.ts`. `reviewCard()` refuses to grade a card that isn't due.
-- A dungeon run only draws from `getDueQueue()`: learning cards whose step has elapsed, review cards due today (Anki-style day boundary, default 4am), and new cards up to the daily limit.
-- If only unfinished learning steps remain, the run pauses on a *Catch your breath* screen until they're due. It doesn't show them early.
-- Endless mode uses Mature+ cards and never calls the scheduler. Grades there only fuel combat.
-- Card effects, tiers and leech clearing are stored in separate game fields (`effect`, `tierSeen`, `leechBase`) and never touch FSRS state.
+- Studying only draws from `getDueQueue()`: learning cards whose step has elapsed, review cards due today (Anki-style day boundary, default 4am), and new cards up to the daily limit.
+- When nothing is due you can keep training with **practice** cards (Mature cards first). Practice is never recorded, gives half xp and no Scholarship.
+- Grades don't change what a skilling action yields, so there's no reason to grade dishonestly. The card's **maturity** is what pays: Young, Mature and Legendary cards give a 10%, 25% or 50% chance of a double yield, speed up the furnace and boost harvests.
+- Card effects, tiers and leech clearing live in separate game fields (`effect`, `tierSeen`, `leechBase`) and never touch FSRS state.
 
 ## Playing
 
-1. **Decks → Create**, add cards (front, back, optional image), or **Import** an Anki `.apkg` / CSV / TSV.
-2. **Enter the Dungeon** and pick a class: Warrior (+30% damage), Cleric (+60% heals and wards) or Rogue (faster combo).
-3. Tap one of the three cards in your hand, read the front, tap to reveal, then grade **Again / Hard / Good / Easy**. The grade goes to FSRS exactly as in Anki. The buttons show the next intervals.
-   - Easy = critical hit, Good = normal, Hard = weak, Again = miss plus a free enemy hit.
-   - Correct answers in a row build the combo multiplier. Again resets it.
-   - Optional speed bonus (Settings): +25% if revealed within 6s. Never applied to new cards.
-4. Every 5 fights you reach a rest stop (heal or visit the merchant). When 8 or fewer due cards remain, the boss appears. Bosses force your due **leech** cards (4+ lapses) into your hand, and beating the boss clears their leech status.
-5. Clear the queue to bank your gold and earn the daily **streak chest**.
+1. **Journey → Decks**: create cards, or **Import** an Anki `.apkg` / CSV / TSV.
+2. **Skills**: choose one activity, such as the copper rock. Only one runs at a time.
+3. **Study**: answer cards. Each graded card performs one action of that activity.
 
-### Card power
+### Skills
 
-Every card rolls an effect when it's created: Strike, Mend, Ward, Venom or Insight (draw). Power scales with FSRS maturity:
+| Group | Skill | How it works |
+|---|---|---|
+| Gathering | Mining, Woodcutting, Fishing | One card = one ore, log or fish, plus rare finds (gems, bird's nests, caskets). Better tools add double-yield chance. |
+| Gathering | Farming | Plant with a **card check**, then crops grow in real time. Harvest when ready. More plots at 15, 35 and 55. |
+| Artisan | Smithing | **Furnace**: start a batch with a card check; bars smelt in real time (1 log of fuel each). **Anvil**: one card forges one sword, helm, shield, platebody, pickaxe or hatchet. |
+| Artisan | Cooking | One card cooks one fish. Cooked food heals in combat. |
+| Combat | Attack, Strength, Defence, Hitpoints | Card combat in four areas, each with a boss after 10–12 kills. Your combat style decides which skill trains. |
+| Knowledge | Scholarship | Every scheduled review, in any skill. |
 
-| Tier | Interval | Power | Effects |
-|---|---|---|---|
-| Novice | new / learning | 3 | common |
-| Young | < 21 days | 5 | common |
-| Mature | 21+ days | 8 | + rare: Twin Fang, Leech Blade, Cleave |
-| Legendary | 90+ days | 12 | + epic: Starfall, Phoenix Rite, Soulrend, Plague |
+All skills use the classic exponential XP table up to 99.
 
-When a card reaches a new tier, you choose 1 of 3 new effects for it.
+### Combat
+
+Tap one of three cards in your hand, reveal, and grade. Easy = critical hit, Good = normal, Hard = weak, Again = miss plus a free enemy hit. Correct answers build a combo. Every card has an effect (Strike, Mend, Ward, Venom, Insight...) whose power grows with FSRS maturity, and you choose a new effect when a card reaches a new tier. Enemies show their next intent.
+
+Gear from the anvil boosts damage and cuts damage taken. Relics from bosses become rings and amulets. Food is eaten automatically below a third of your HP. Bosses drag your due **leech** cards (4+ lapses) into your hand, and beating one clears their leech status. Dying ends the trip, costs 10% of your gold and wakes you at half HP. Out of combat, HP regenerates in real time.
 
 ### Progression
 
-- **Skills 1–99** on the classic exponential MMO XP curve: Attack, Defence, Hitpoints, Scholarship (XP from reviews).
-- **Relics** from shops and bosses (e.g. *Twin Sigil*: first card each fight triggers twice; *Feather of Ease*: heal 1 on every Easy).
-- **Armoury**: permanent upgrades bought with banked gold, plus milestone rewards at 50 / 100 / 500 / 1000 mature cards.
-- **Endless Depths** when nothing is due.
+- **Bank** and **general store**: sell anything; buy seeds, bread, rods and starter tools.
+- **Gear**: six equipment slots, a food slot and your combat style.
+- **Journey**: total and combat level, the daily **streak chest** for clearing your queue, and milestone rewards at 50 / 100 / 500 / 1000 mature cards.
 
 ## Anki import
 
@@ -64,7 +64,7 @@ When a card reaches a new tier, you choose 1 of 3 new effects for it.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # vitest: FSRS integration, Anki import, combat/run rules, backup
+npm test           # vitest: FSRS integration, Anki import, skilling/combat rules, cloud save, backup
 npm run build      # typecheck + production build with service worker → dist/
 npm run preview
 ```
@@ -79,10 +79,10 @@ Deploy `dist/` to any static host. It must be served over HTTPS for install and 
 
 ```
 src/core/     db (Dexie), srs (FSRS wrapper + due queue), profile, settings, backup
-src/game/     effects, combat (pure), enemies, relics, skills, classes, meta, run state
+src/game/     skills, items, activities (rocks, trees, recipes, seeds, areas), world (bank, gear, furnace, plots, trips), combat (pure), effects, relics
 src/import/   apkg, template renderer, protobuf reader, csv, html sanitizer
 src/art/      original pixel sprites (character grids) + procedural dungeon backdrops
-src/ui/       React screens, combat arena, 8-bit WebAudio sfx
+src/ui/       tabs (Study, Skills, Bank, Gear, Journey), deck screens, combat view, 8-bit WebAudio sfx
 tests/        vitest suites
 ```
 

@@ -12,10 +12,10 @@ export const RELICS: Record<RelicId, RelicDef> = {
   goldtooth: { id: 'goldtooth', name: 'Gold Tooth', desc: '+25% gold from kills.', icon: 'coin', cost: 40 },
   ember: { id: 'ember', name: 'Undying Ember', desc: 'Every Good or Easy deals 1 extra damage.', icon: 'flame', cost: 55 },
   grimoire: { id: 'grimoire', name: 'Tattered Grimoire', desc: 'New cards hit as if Young.', icon: 'book', cost: 50 },
-  bloodvial: { id: 'bloodvial', name: 'Blood Vial', desc: 'Heal 3 after each fight.', icon: 'potion', cost: 45 },
+  bloodvial: { id: 'bloodvial', name: 'Blood Vial', desc: 'Heal 3 after each kill.', icon: 'potion', cost: 45 },
   wardstone: { id: 'wardstone', name: 'Wardstone', desc: 'Again costs 2 less HP.', icon: 'gem', cost: 50 },
   comboring: { id: 'comboring', name: 'Ring of Rhythm', desc: 'Combo starts at 2.', icon: 'ring', cost: 55 },
-  deathward: { id: 'deathward', name: 'Death Ward', desc: 'Once per run, survive a killing blow at 1 HP.', icon: 'ankh', cost: 80 },
+  deathward: { id: 'deathward', name: 'Death Ward', desc: 'Once per trip, survive a killing blow at 1 HP.', icon: 'ankh', cost: 80 },
   focuscrystal: { id: 'focuscrystal', name: 'Focus Crystal', desc: 'Crits (Easy) deal +50% more.', icon: 'gem', cost: 60 },
 };
 
