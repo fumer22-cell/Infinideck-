@@ -6,6 +6,7 @@ import { EFFECTS } from '../../game/effects';
 import { stripHtml } from '../../import/html';
 import { EmptyState, Sprite, TopBar } from '../common';
 import { useApp } from '../context';
+import { forgetTypedDeck } from '../ReviewPanel';
 
 export function DeckView({ deckId }: { deckId: number }) {
   const { go, back, settings, toast, ask } = useApp();
@@ -33,6 +34,13 @@ export function DeckView({ deckId }: { deckId: number }) {
   }, [cards, q]);
 
   if (!deck) return <TopBar title="…" />;
+
+  const toggleTyped = async (on: boolean) => {
+    await db.decks.update(deckId, { typeAnswers: on });
+    forgetTypedDeck(deckId);
+    setDeck({ ...deck, typeAnswers: on });
+    toast(on ? 'Typed answers on for this deck.' : 'Typed answers off.');
+  };
 
   const rename = async () => {
     if (!newName.trim()) return;
@@ -75,6 +83,15 @@ export function DeckView({ deckId }: { deckId: number }) {
             <button className="btn green" onClick={() => go({ name: 'editCard', deckId })}>+ Add card</button>
           </div>
           <button className="btn stone small block" onClick={() => go({ name: 'import', deckId })}>Import cards into this deck</button>
+        </div>
+        <div className="stone">
+          <label className="toggle">
+            <span className="col" style={{ gap: 4 }}>
+              <span>Type your answers</span>
+              <span className="desc small">The app checks what you type. Correct typed answers are verified: +25% xp and double rare-find chances.</span>
+            </span>
+            <input id="type-answers" type="checkbox" checked={!!deck.typeAnswers} onChange={(e) => toggleTyped(e.target.checked)} />
+          </label>
         </div>
         <input id="card-search" type="text" placeholder="Search cards…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search cards" />
         <div className="list">

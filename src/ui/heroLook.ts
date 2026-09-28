@@ -1,9 +1,9 @@
 import type { HeroLook, ToolKind } from '../art/hero';
-import { ITEMS, METALS } from '../game/items';
+import { baseItemId, ITEMS, METALS } from '../game/items';
 import type { Levels } from '../game/skills';
 import { bestTool, type World } from '../game/world';
 
-const metalOf = (id?: string) => (id ? METALS.find((m) => id.startsWith(`${m.id}-`)) : undefined);
+const metalOf = (id?: string) => (id ? METALS.find((m) => baseItemId(id).startsWith(`${m.id}-`)) : undefined);
 
 /** Dress the hero in their equipped armour, holding the right tool for the job. */
 export function heroLook(world: World, lv: Levels, tool: ToolKind): HeroLook {

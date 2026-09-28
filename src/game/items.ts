@@ -4,7 +4,7 @@ import type { SkillId } from './skills';
 export type Slot = 'weapon' | 'helm' | 'body' | 'shield' | 'amulet' | 'ring';
 export const SLOTS: Slot[] = ['weapon', 'helm', 'body', 'shield', 'amulet', 'ring'];
 export type ToolKind = 'pickaxe' | 'axe' | 'rod';
-export type ItemKind = 'ore' | 'gem' | 'bar' | 'log' | 'fish' | 'food' | 'gear' | 'tool' | 'seed' | 'crop' | 'trinket' | 'misc';
+export type ItemKind = 'ore' | 'gem' | 'bar' | 'log' | 'fish' | 'food' | 'gear' | 'tool' | 'seed' | 'crop' | 'trinket' | 'legendary' | 'pet' | 'misc';
 
 export interface ItemDef {
   id: string;
@@ -155,6 +155,56 @@ for (const r of Object.values(RELICS)) {
   const slot: Slot = RING_RELICS.includes(r.id) ? 'ring' : 'amulet';
   add({ id: `relic-${r.id}`, name: r.name, icon: r.icon, kind: 'trinket', value: r.cost * 10, equip: { slot, level: 1, relic: r.id }, desc: r.desc });
 }
+
+// ---------- quality variants ----------
+add({ id: 'burnt-food', name: 'Burnt food', icon: 'fish', tint: { y: '#2a1a10', Y: '#4a3020' }, kind: 'misc', value: 0, desc: 'Burnt to a crisp. Keep a streak going to cook better.' });
+
+/** Perfect dishes heal 25% more. */
+export const perfectOf = (id: string) => `perfect-${id}`;
+for (const d of Object.values(ITEMS).filter((x) => x.kind === 'food' && (x.id.startsWith('cooked-') || x.id.startsWith('dish-')))) {
+  add({ ...d, id: perfectOf(d.id), name: `Perfect ${d.name.toLowerCase()}`, heal: Math.round((d.heal ?? 0) * 1.25), value: Math.round(d.value * 1.5), tint: { ...d.tint, Y: '#fff0a0' }, desc: 'Cooked to perfection: heals 25% more.' });
+}
+
+/** Masterwork gear and tools have 50% stronger bonuses. */
+export const masterworkOf = (id: string) => `mw-${id}`;
+for (const d of Object.values(ITEMS).filter((x) => (x.kind === 'gear' && !x.equip?.relic) || x.kind === 'tool')) {
+  add({
+    ...d,
+    id: masterworkOf(d.id),
+    name: `Masterwork ${d.name.toLowerCase()}`,
+    value: Math.round(d.value * 2.5),
+    equip: d.equip ? { ...d.equip, dmg: d.equip.dmg ? +(d.equip.dmg * 1.5).toFixed(3) : undefined, dr: d.equip.dr ? +(d.equip.dr * 1.5).toFixed(3) : undefined } : undefined,
+    tool: d.tool ? { ...d.tool, bonus: +(d.tool.bonus * 1.5).toFixed(3) } : undefined,
+    desc: 'Forged on a hot streak: 50% stronger than usual.',
+  });
+}
+/** The ordinary item a variant is based on (for colours and recipes). */
+export const baseItemId = (id: string) => id.replace(/^(mw|perfect)-/, '');
+
+// ---------- legendary finds and pets (collection log) ----------
+type Tint = Record<string, string>;
+export const LEGENDARIES: { id: string; name: string; icon: string; tint: Tint; skill: SkillId; level: number; value: number; desc: string }[] = [
+  { id: 'leg-starmetal', name: 'Starmetal chunk', icon: 'ore', tint: { y: '#6a3aa0', Y: '#e0c0ff' }, skill: 'mining' as SkillId, level: 1, value: 2500, desc: 'A shard of a fallen star, warm to the touch.' },
+  { id: 'leg-heartwood', name: 'Heartwood', icon: 'log', tint: { b: '#8a1a2a' }, skill: 'woodcutting' as SkillId, level: 1, value: 2500, desc: 'The living core of an ancient tree.' },
+  { id: 'leg-golden-trout', name: 'Golden trout', icon: 'fish', tint: { y: '#e8c040', Y: '#fff0a0' }, skill: 'fishing' as SkillId, level: 15, value: 2000, desc: 'Scales of true gold. Anglers tell stories about these.' },
+  { id: 'leg-abyssal-eel', name: 'Abyssal eel', icon: 'fish', tint: { y: '#2a1a4a', Y: '#a070c0' }, skill: 'fishing' as SkillId, level: 40, value: 4000, desc: 'It came up from somewhere much deeper than the river.' },
+  { id: 'leg-leviathan-scale', name: 'Leviathan scale', icon: 'shield', tint: { g: '#1a6a7a', y: '#7ae0e8' }, skill: 'fishing' as SkillId, level: 70, value: 9000, desc: 'Something enormous shed this. Best not to wonder.' },
+];
+for (const l of LEGENDARIES) add({ id: l.id, name: l.name, icon: l.icon, tint: l.tint, kind: 'legendary', value: l.value, desc: l.desc });
+
+export const PETS: { id: string; name: string; icon: string; tint?: Tint; skill: SkillId }[] = [
+  { id: 'pet-golem', name: 'Pebble the golem', icon: 'knight', tint: { g: '#8a847c', d: '#55504b' }, skill: 'mining' as SkillId },
+  { id: 'pet-beaver', name: 'Chompers the beaver', icon: 'rat', tint: { g: '#8a5a2a', d: '#5a3a1a' }, skill: 'woodcutting' as SkillId },
+  { id: 'pet-heron', name: 'Long Tom the heron', icon: 'bat', tint: { d: '#9ab0c0' }, skill: 'fishing' as SkillId },
+  { id: 'pet-kitten', name: 'Cinder the kitchen cat', icon: 'rat', tint: { g: '#e0782a', d: '#a04a1a' }, skill: 'cooking' as SkillId },
+  { id: 'pet-imp', name: 'Sootling the forge imp', icon: 'cultist', tint: { r: '#3a3531' }, skill: 'smithing' as SkillId },
+  { id: 'pet-toad', name: 'Sir Croaksalot', icon: 'slime', tint: { M: '#6a9a3a', m: '#3a6a2a' }, skill: 'farming' as SkillId },
+  { id: 'pet-wraith', name: 'Whisper the wraith', icon: 'wisp', skill: 'attack' as SkillId },
+];
+for (const p of PETS) add({ id: p.id, name: p.name, icon: p.icon, tint: p.tint, kind: 'pet', value: 0, desc: 'A loyal companion. Found once in a long while by training this skill.' });
+
+/** Everything the collection log tracks. */
+export const COLLECTION: string[] = [...LEGENDARIES.map((l) => l.id), ...PETS.map((p) => p.id), 'gem-sapphire', 'gem-emerald', 'gem-ruby', 'gem-diamond', ...Object.keys(ITEMS).filter((id) => id.startsWith('relic-'))];
 
 export function item(id: string): ItemDef {
   const d = ITEMS[id];

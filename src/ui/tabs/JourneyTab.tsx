@@ -5,7 +5,8 @@ import { countDue, dayStart } from '../../core/srs';
 import { combatLevel, SKILLS, totalLevel } from '../../game/skills';
 import { countMature } from '../actions';
 import { CloudBadge } from '../CloudGate';
-import { GoldPill, NavRow, PageHeader, SectionTitle, Sprite, XpBar } from '../common';
+import { COLLECTION, ITEMS } from '../../game/items';
+import { GoldPill, ItemIcon, NavRow, PageHeader, SectionTitle, Sprite, XpBar } from '../common';
 import { useApp } from '../context';
 import { HeroView } from '../HeroView';
 import { heroLook } from '../heroLook';
@@ -136,6 +137,19 @@ export function JourneyTab() {
         ))}
       </div>
 
+      <SectionTitle note={`${COLLECTION.filter((id) => world.collection?.[id]).length} / ${COLLECTION.length}`}>Collection log</SectionTitle>
+      <div className="collection">
+        {COLLECTION.map((id) => {
+          const found = world.collection?.[id];
+          return (
+            <div key={id} className={`slot ${found ? 'found' : 'missing'}`} title={found ? `${ITEMS[id].name}: found ${new Date(found).toLocaleDateString()}` : 'Not found yet'} aria-label={found ? ITEMS[id].name : 'Not found yet'}>
+              <ItemIcon id={id} size={30} />
+            </div>
+          );
+        })}
+      </div>
+      <div className="desc small">Rare finds, legendaries and pets only turn up on right answers. Streaks, Easy answers, verified answers and mature cards all improve the odds.</div>
+
       <SectionTitle>Records</SectionTitle>
       <div className="stat-grid">
         <div className="stat"><b>{profile.stats.reviews.toLocaleString()}</b><span>REVIEWS</span></div>
@@ -143,8 +157,8 @@ export function JourneyTab() {
         <div className="stat"><b>{world.stats.kills}</b><span>SLAIN</span></div>
         <div className="stat"><b>{world.stats.bossKills}</b><span>BOSSES</span></div>
         <div className="stat"><b>{world.stats.deaths}</b><span>DEATHS</span></div>
-        <div className="stat"><b>{profile.streak.best}</b><span>BEST STREAK</span></div>
-        <div className="stat"><b>{profile.milestonesClaimed.length}</b><span>MILESTONES</span></div>
+        <div className="stat"><b>{profile.streak.best}</b><span>BEST DAYS</span></div>
+        <div className="stat"><b>{world.bestChain ?? 0}</b><span>BEST STREAK</span></div>
         <div className="stat"><b>{totalLevel(lv)}</b><span>TOTAL LVL</span></div>
       </div>
     </div>

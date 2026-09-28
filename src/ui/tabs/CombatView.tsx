@@ -14,7 +14,7 @@ import { FAST_MS, ReviewPanel } from '../ReviewPanel';
 import { Arena, type Fx } from '../run/Arena';
 import { HandCard } from '../run/HandCard';
 import { sfx } from '../sfx';
-import { practicePool, recordGrade, scaleXp } from '../study';
+import { answerFlags, practicePool, recordGrade, scaleXp } from '../study';
 import { TierUpModal } from '../TierUp';
 import { heroLook } from '../heroLook';
 import { DoneForNow } from './StudyTab';
@@ -175,12 +175,13 @@ export function CombatView({ queue, reload, practice, setPractice, nextLearn }: 
     );
   };
 
-  const onGrade = async (grade: 1 | 2 | 3 | 4, revealMs: number) => {
+  const onGrade = async (grade: 1 | 2 | 3 | 4, revealMs: number, verified = false) => {
     const card = active;
     if (!card || !c || busy) return;
     setBusy(true);
     setActive(null);
     try {
+      const flags = answerFlags(card);
       const rec = await recordGrade(app, card, grade, onPractice);
       const wasNew = card.state === State.New;
       const fast = settings.speedBonus && !wasNew && grade > 1 && revealMs < FAST_MS;
@@ -189,7 +190,9 @@ export function CombatView({ queue, reload, practice, setPractice, nextLearn }: 
       let eaten = 0;
       await app.updateWorld((w) => {
         if (fast) pushLog(w, 'Swift recall! +25% power.', 'gold');
-        res = combatPlay(w, lv, maxHp, { effect: card.effect, tier: rec.tier, wasNew }, grade, fast);
+        res = combatPlay(w, lv, maxHp, { effect: card.effect, tier: rec.tier, wasNew }, grade, fast, Math.random, { verified, ...flags });
+        if (res.answer?.milestone) pushLog(w, res.answer.milestone.text, 'gold');
+        for (const id of res.firsts ?? []) pushLog(w, `New collection log entry: ${ITEMS[id].name}!`, 'gold');
         if (res.events.some((e) => e.t === 'enemyDmg' || e.t === 'miss')) setAttackKey((k) => k + 1);
         animMs = animate(res.events, w, res.enemyName);
         if (w.combat) {
@@ -211,6 +214,11 @@ export function CombatView({ queue, reload, practice, setPractice, nextLearn }: 
       await app.gainXp({ ...scaleXp(res.xp, onPractice), scholarship: rec.scholarship });
       if (eaten) setTimeout(sfx.heal, animMs);
       if (rec.tierUp) setTierUp(rec.tierUp);
+      const milestone = res.answer?.milestone;
+      if (milestone) {
+        app.toast(milestone.text);
+        if (milestone.gold) await app.updateProfile((p) => void (p.gold += milestone.gold));
+      }
 
       if (res.died) {
         const lost = Math.floor(app.profile.gold * 0.1);

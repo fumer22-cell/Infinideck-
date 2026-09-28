@@ -57,4 +57,9 @@ export function scaleXp(xp: Partial<Record<string, number>>, practice: boolean) 
   return Object.fromEntries(Object.entries(xp).map(([k, v]) => [k, Math.round((v ?? 0) / 2)]));
 }
 
+/** Bonus flags for how this answer should be rewarded (see game/rewards.ts). */
+export function answerFlags(card: CardRow) {
+  return { leech: isLeech(card), discovery: card.state === State.New, secondWind: card.state === State.Relearning };
+}
+
 export { isLeech };

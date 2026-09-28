@@ -15,6 +15,8 @@ export interface Deck {
   id?: number;
   name: string;
   created: number;
+  /** type answers and have the app check them ("verified" answers earn extra) */
+  typeAnswers?: boolean;
 }
 
 /** A card row. FSRS fields mirror ts-fsrs `Card`, with dates stored as epoch ms. */

@@ -3,6 +3,7 @@ import { AREAS, COOKING, FORGING, GATHER, SEEDS, SMELTING, plotCount } from '../
 import { ITEMS, LOG_ORDER, METALS } from '../../game/items';
 import { combatLevel, SKILL_BY_ID, SKILLS, totalLevel, XP_TABLE, xpProgress, type SkillGroup, type SkillId } from '../../game/skills';
 import { areaLocked, bestTool, FERTILISER, harvest, leaveCombat, maxSmeltable, plant, plotReady, pushLog, startSmelt, syncPlots, TOOL_FOR, toolNeeded, type Active, type CombatStyle } from '../../game/world';
+import { MASTERY_SAFE, masteryDouble } from '../../game/rewards';
 import { CardCheck } from '../CardCheck';
 import { ItemIcon, PageHeader, SectionTitle, Sprite, TopBar, XpBar } from '../common';
 import { useApp } from '../context';
@@ -137,6 +138,22 @@ function isActive(a: Active | null, kind: Active['kind'], id: string) {
   return a?.kind === kind && a.id === id;
 }
 
+/** Mastery of one rock, tree, spot or recipe: a level and a thin bar. */
+function Mastery({ id }: { id: string }) {
+  const { world } = useApp();
+  const xp = world.mastery?.[id] ?? 0;
+  if (!xp) return null;
+  const pr = xpProgress(xp);
+  const perk = masteryDouble(pr.level);
+  return (
+    <div className="mastery" title={`Mastery ${pr.level}${perk ? `: +${Math.round(perk * 100)}% double yield` : ''}`}>
+      <span>Mastery {pr.level}</span>
+      <XpBar into={pr.into} span={pr.span} tone="gold" />
+      {pr.level >= MASTERY_SAFE && <span className="green">safe</span>}
+    </div>
+  );
+}
+
 /** A callout naming the next thing to unlock and every step it needs. */
 function NextGoal({ title, steps }: { title: string; steps: { text: string; done: boolean }[] }) {
   return (
@@ -187,6 +204,7 @@ function GatherList({ skill }: { skill: 'mining' | 'woodcutting' | 'fishing' }) 
                 <div className="small muted">
                   {locked ? [lv[skill] < n.level ? `Level ${n.level}` : '', needTool ? `needs ${toolNeeded(kind, n.tool).name}` : ''].filter(Boolean).join(' · ') : `${n.xp} xp per card · have ${world.bank[n.item] ?? 0}`}
                 </div>
+                <Mastery id={n.id} />
               </div>
               <button className={`btn small ${on ? 'green' : ''}`} disabled={locked} onClick={() => train({ kind: 'gather', id: n.id })}>{on ? 'Training' : 'Train'}</button>
             </div>
@@ -213,6 +231,7 @@ function CookList() {
             <div className="name">
               <div>{r.name} <span className="small muted">heals {ITEMS[r.output].heal}</span></div>
               <div className="small muted">{locked ? `Level ${r.level} · ` : `${r.xp} xp · `}{needs}</div>
+              <Mastery id={r.id} />
             </div>
             <button className={`btn small ${on ? 'green' : ''}`} disabled={locked || !can} onClick={() => train({ kind: 'cook', id: r.id })}>{on ? 'Cooking' : 'Cook'}</button>
           </div>
@@ -235,16 +254,19 @@ function FurnacePanel() {
   const f = world.furnace;
   const r = SMELTING.find((x) => x.id === recipe)!;
 
-  const light = async (tier: 0 | 1 | 2 | 3) => {
+  const light = async (tier: 0 | 1 | 2 | 3, grade: 1 | 2 | 3 | 4) => {
     setChecking(false);
-    const ok = await app.updateWorld((w) => {
-      const done = startSmelt(w, recipe, qty, lv, tier);
-      if (done) pushLog(w, `The furnace roars: smelting ${qty} ${r.name.toLowerCase()}s.`, 'info');
+    const res = await app.updateWorld((w) => {
+      const done = startSmelt(w, recipe, qty, lv, tier, Date.now(), grade);
+      if (done) pushLog(w, `The furnace roars: smelting ${done.total} ${r.name.toLowerCase()}s.`, 'info');
+      if (done && done.note) pushLog(w, done.note, grade === 1 ? 'bad' : 'gold');
       return done;
     });
-    if (ok) {
-      sfx.shield();
-      app.toast(tier ? `Your ${['', 'Young', 'Mature', 'Legendary'][tier]} card stokes the fire: ${tier * 10}% faster.` : 'The furnace is lit.');
+    if (res) {
+      if (grade === 1) sfx.miss();
+      else sfx.shield();
+      const speed = tier ? ` Your ${['', 'Young', 'Mature', 'Legendary'][tier]} card stokes the fire.` : '';
+      app.toast(res.note ?? `The furnace is lit.${speed}`);
     }
   };
 
@@ -298,7 +320,7 @@ function FurnacePanel() {
           <div className="desc small">Answer one card to light it. The card’s maturity makes smelting faster.</div>
         </>
       )}
-      {checking && <CardCheck title="light the furnace" onDone={light} onCancel={() => setChecking(false)} />}
+      {checking && <CardCheck title="light the furnace" hint="Miss: one bar’s ore turns to slag. Easy: 10% faster. A Legendary card adds a bonus bar." onDone={light} onCancel={() => setChecking(false)} />}
     </div>
   );
 }
@@ -332,6 +354,7 @@ function ForgeList() {
                     {eq?.dr ? ` · ${Math.round(eq.dr * 100)}% armour` : ''}
                     {tool ? ` · +${Math.round(tool.bonus * 100)}% yield` : ''}
                   </div>
+                  <Mastery id={f.id} />
                 </div>
                 <button className={`btn small ${on ? 'green' : ''}`} disabled={locked || (world.bank[f.bar] ?? 0) < f.bars} onClick={() => train({ kind: 'forge', id: f.id })}>{on ? 'Forging' : 'Forge'}</button>
               </div>
@@ -357,14 +380,15 @@ function FarmPanel() {
   }, [lv.farming]);
   const seeds = SEEDS.filter((s) => lv.farming >= s.level && (world.bank[s.seed] ?? 0) > 0);
 
-  const doPlant = async (tier: 0 | 1 | 2 | 3) => {
+  const doPlant = async (tier: 0 | 1 | 2 | 3, grade: 1 | 2 | 3 | 4) => {
     const p = planting!;
     setPlanting(null);
-    const ok = await app.updateWorld((w) => plant(w, p.idx, p.seed, lv, tier, Date.now(), fertUsed));
+    const ok = await app.updateWorld((w) => plant(w, p.idx, p.seed, lv, tier, Date.now(), fertUsed, grade));
     if (ok) {
       sfx.heal();
-      const bonus = tier * 25 + (fertUsed ? FERTILISER[fertUsed] * 100 : 0);
-      app.toast(bonus ? `Planted: +${bonus}% harvest${fertUsed ? ` (${ITEMS[fertUsed].name.toLowerCase()} fertiliser)` : ''}.` : 'Planted.');
+      const bonus = tier * 25 + (fertUsed ? FERTILISER[fertUsed] * 100 : 0) + (grade === 1 ? -25 : grade === 4 ? 15 : 0);
+      if (grade === 1) sfx.miss();
+      app.toast(`${grade === 1 ? 'Weeds crept in. ' : grade === 4 ? 'Green thumb! ' : ''}${bonus ? `Planted: ${bonus > 0 ? '+' : ''}${bonus}% harvest.` : 'Planted.'}`);
     }
   };
   const doHarvest = async (idx: number) => {
@@ -375,7 +399,7 @@ function FarmPanel() {
     });
     if (got) {
       sfx.coin();
-      app.toast(`+${got.qty} ${ITEMS[got.crop].name}`);
+      app.toast(got.pet ? `A pet! ${ITEMS[got.pet].name} hops out of the soil.` : `+${got.qty} ${ITEMS[got.crop].name}`);
       await app.gainXp({ farming: got.xp });
     }
   };
@@ -428,7 +452,7 @@ function FarmPanel() {
           </div>
         );
       })}
-      {planting && <CardCheck title="plant the seed" onDone={doPlant} onCancel={() => setPlanting(null)} />}
+      {planting && <CardCheck title="plant the seed" hint="Miss: weeds (−25% harvest). Easy: green thumb (+15%)." onDone={doPlant} onCancel={() => setPlanting(null)} />}
     </div>
   );
 }

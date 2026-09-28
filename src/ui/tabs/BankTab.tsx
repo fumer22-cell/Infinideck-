@@ -7,8 +7,8 @@ import { EmptyState, GoldPill, ItemIcon, NavRow, PageHeader, SectionTitle, TopBa
 import { useApp } from '../context';
 import { sfx } from '../sfx';
 
-const ORDER: ItemKind[] = ['food', 'fish', 'ore', 'gem', 'bar', 'log', 'seed', 'crop', 'gear', 'tool', 'trinket', 'misc'];
-const KIND_LABEL: Record<ItemKind, string> = { food: 'Food', fish: 'Raw fish', ore: 'Ore', gem: 'Gems', bar: 'Bars', log: 'Logs', seed: 'Seeds', crop: 'Crops', gear: 'Equipment', tool: 'Tools', trinket: 'Trinkets', misc: 'Other' };
+const ORDER: ItemKind[] = ['legendary', 'pet', 'food', 'fish', 'ore', 'gem', 'bar', 'log', 'seed', 'crop', 'gear', 'tool', 'trinket', 'misc'];
+const KIND_LABEL: Record<ItemKind, string> = { food: 'Food', fish: 'Raw fish', ore: 'Ore', gem: 'Gems', bar: 'Bars', log: 'Logs', seed: 'Seeds', crop: 'Crops', gear: 'Equipment', tool: 'Tools', trinket: 'Trinkets', legendary: 'Legendary finds', pet: 'Pets', misc: 'Other' };
 const NEST_SEEDS = ['seed-potato', 'seed-potato', 'seed-onion', 'seed-onion', 'seed-cabbage', 'seed-tomato', 'seed-strawberry', 'seed-watermelon'];
 
 export function BankTab() {

@@ -79,12 +79,12 @@ describe('gathering and crafting', () => {
     const w = W.newWorld(40);
     w.active = { kind: 'gather', id: 'rock-copper' };
     const lv = lvAt();
-    const r = W.performAction(w, lv, 1, seq(0.99, 0.99, 0.99, 0.99, 0.99));
+    const r = W.performAction(w, lv, { grade: 3, tier: 1 }, seq(0.99, 0.99, 0.99, 0.99, 0.99));
     expect(r.ok).toBe(true);
     expect(r.items).toEqual({ 'ore-copper': 1 });
     expect(r.xp).toEqual({ mining: 25 });
     // Legendary card: 50% + tool 5% double chance
-    const d = W.performAction(w, lv, 3, seq(0.5, 0.99, 0.99, 0.99, 0.99));
+    const d = W.performAction(w, lv, { grade: 3, tier: 3 }, seq(0.5, 0.99, 0.99, 0.99, 0.99));
     expect(d.items['ore-copper']).toBe(2);
     expect(w.bank['ore-copper']).toBe(3);
   });
@@ -110,15 +110,15 @@ describe('gathering and crafting', () => {
     const w = W.newWorld(40);
     w.bank['raw-shrimp'] = 2;
     w.active = { kind: 'cook', id: 'cook-shrimp' };
-    expect(W.performAction(w, lvAt(), 0).ok).toBe(true);
+    expect(W.performAction(w, lvAt(), { grade: 3, tier: 0 }, () => 0.99).ok).toBe(true);
     expect(w.bank['raw-shrimp']).toBe(1);
     expect(w.bank['cooked-shrimp']).toBe(1);
     const body = FORGING.find((f) => f.id === 'forge-bronze-body')!;
     w.bank['bar-bronze'] = 2;
     w.active = { kind: 'forge', id: body.id };
-    expect(W.performAction(w, lvAt({ smithing: 10 }), 0).ok).toBe(false);
+    expect(W.performAction(w, lvAt({ smithing: 10 }), { grade: 3, tier: 0 }, () => 0.99).ok).toBe(false);
     w.bank['bar-bronze'] = 3;
-    expect(W.performAction(w, lvAt({ smithing: 10 }), 0).items).toEqual({ 'bronze-body': 1 });
+    expect(W.performAction(w, lvAt({ smithing: 10 }), { grade: 3, tier: 0 }, () => 0.99).items).toEqual({ 'bronze-body': 1 });
     expect(w.bank['bar-bronze']).toBeUndefined();
   });
 
@@ -127,7 +127,7 @@ describe('gathering and crafting', () => {
     Object.assign(w.bank, { 'ore-copper': 5, 'ore-tin': 5, 'log-normal': 3 });
     const lv = lvAt();
     expect(W.maxSmeltable(w, 'smelt-bronze', lv)).toBe(3); // limited by logs
-    expect(W.startSmelt(w, 'smelt-bronze', 3, lv, 2, 0)).toBe(true);
+    expect(W.startSmelt(w, 'smelt-bronze', 3, lv, 2, 0)).toMatchObject({ total: 3 });
     expect(w.bank['log-normal']).toBeUndefined();
     expect(w.bank['ore-copper']).toBe(2);
     const each = w.furnace!.msEach;
@@ -223,7 +223,7 @@ describe('skills depend on each other', () => {
     // mine iron → smelt → forge an iron pickaxe → coal opens up
     w.bank['bar-iron'] = 2;
     w.active = { kind: 'forge', id: 'forge-iron-pickaxe' };
-    expect(W.performAction(w, lv, 0).ok).toBe(true);
+    expect(W.performAction(w, lv, { grade: 3, tier: 0 }, () => 0.99).ok).toBe(true);
     w.active = { kind: 'gather', id: 'rock-coal' };
     expect(W.checkActive(w, lv)).toBeNull();
   });
@@ -246,7 +246,7 @@ describe('skills depend on each other', () => {
     w.bank['log-oak'] = 2;
     w.bank['log-willow'] = 1;
     expect(W.maxSmeltable(w, 'smelt-steel', lv)).toBe(3);
-    expect(W.startSmelt(w, 'smelt-steel', 3, lv, 0, 0)).toBe(true);
+    expect(W.startSmelt(w, 'smelt-steel', 3, lv, 0, 0)).toMatchObject({ total: 3 });
     expect(w.bank['log-normal']).toBe(5); // normal logs were not burned
     expect(w.bank['log-oak']).toBeUndefined();
     expect(w.bank['log-willow']).toBeUndefined();
@@ -258,7 +258,7 @@ describe('skills depend on each other', () => {
     w.active = { kind: 'cook', id: 'cook-pie' };
     expect(W.checkActive(w, lvAt({ cooking: 30 }))).toMatch(/potato/);
     w.bank['crop-potato'] = 2;
-    expect(W.performAction(w, lvAt({ cooking: 30 }), 0).items).toEqual({ 'dish-pie': 1 });
+    expect(W.performAction(w, lvAt({ cooking: 30 }), { grade: 3, tier: 0 }, () => 0.99).items).toEqual({ 'dish-pie': 1 });
     expect(w.bank['raw-trout']).toBeUndefined();
   });
 

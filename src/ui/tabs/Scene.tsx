@@ -2,11 +2,12 @@ import { backgroundUrl, type Scene as SceneId } from '../../art/backgrounds';
 import { AREA_BY_ID, COOKING, FORGING, GATHER } from '../../game/activities';
 import { SKILL_BY_ID, xpProgress, type SkillId } from '../../game/skills';
 import type { Active } from '../../game/world';
+import { isFocused, REST_CAP, REST_MS } from '../../game/rewards';
 import { ActionScene } from '../ActionScene';
 import { ItemIcon, Sprite, XpBar } from '../common';
 import { useApp } from '../context';
 
-export interface Pop { id: number; item?: string; text: string; tone?: string; x: number }
+export interface Pop { id: number; item?: string; text: string; tone?: string; x: number; y?: number }
 
 export function activityInfo(a: Active): { skill: SkillId; name: string; icon: string; item?: string; scene: SceneId } {
   if (a.kind === 'gather') {
@@ -31,6 +32,7 @@ export function Scene({ active, pops, status, actionKey = 0 }: { active: Active;
   const info = activityInfo(active);
   const pr = xpProgress(profile.xp[info.skill]);
   const have = info.item ? world.bank[info.item] ?? 0 : 0;
+  const restedNow = Math.min(REST_CAP, (world.rested ?? 0) + (world.lastActive && Date.now() - world.lastActive >= REST_MS ? Math.floor((Date.now() - world.lastActive) / REST_MS) : 0));
   const readyPlots = world.plots.filter((p) => p && Date.now() - p.planted >= p.growMs).length;
   return (
     <div className="scene px" style={{ backgroundImage: `url(${backgroundUrl(info.scene)})` }}>
@@ -48,10 +50,20 @@ export function Scene({ active, pops, status, actionKey = 0 }: { active: Active;
           {readyPlots > 0 && <span className="pill green"><Sprite name="sprout" size={14} /> {readyPlots}</span>}
         </div>
       </div>
+      <div className="scene-bonuses">
+        {(world.chain ?? 0) > 0 && (
+          <span className="pill chain num" title="Correct answers in a row">
+            <Sprite name="flame" size={14} /> <b>{world.chain}</b> ×{(1 + Math.min(0.5, 0.05 * ((world.chain ?? 1) - 1))).toFixed(2)}
+          </span>
+        )}
+        {(world.hot ?? 0) > 0 && <span className="pill hot num">Double ×{world.hot}</span>}
+        {restedNow > 0 && <span className="pill rested num" title="Rested: +50% xp per right answer">Rested {restedNow}</span>}
+        {isFocused(world) && <span className="pill green">Focused</span>}
+      </div>
       {status && <div className="scene-status">{status}</div>}
       <div className="splat-layer">
         {pops.map((p) => (
-          <div key={p.id} className={`pop ${p.tone ?? ''}`} style={{ left: `${p.x}%` }}>
+          <div key={p.id} className={`pop ${p.tone ?? ''}`} style={{ left: `${p.x}%`, bottom: `${30 + (p.y ?? 0)}%` }}>
             {p.item && <ItemIcon id={p.item} size={20} />} {p.text}
           </div>
         ))}

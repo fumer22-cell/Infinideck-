@@ -64,6 +64,19 @@ Gear from the anvil boosts damage and cuts damage taken. Relics from bosses beco
 - **Gear**: six equipment slots, a food slot and your combat style.
 - **Journey**: total and combat level, the daily **streak chest** for clearing your queue, and milestone rewards at 50 / 100 / 500 / 1000 mature cards.
 
+## Rewards and penalties
+
+The game reacts to how you answered, never to when a card is due. Scheduling stays with FSRS.
+
+- **Again is a miss**: no skill xp and no resource, though Scholarship xp still counts. Cooking burns the food, smithing cracks a bar, a lit furnace loses a bar to slag, and a planted patch gets weeds. Mastery 50 on a recipe makes it safe from burning and cracking.
+- **Streaks**: each right answer in a row adds +5% xp, up to +50%. Hard still counts as right. Milestones at 10, 25, 50 and 100 give hot streaks of double yields, rare finds and gold.
+- **Easy** gives +20% xp and better rare odds. Fishing gets bigger catches, cooking can make perfect dishes, and smithing can forge masterworks.
+- **Skill streaks**: woodcutting fells the tree on every 5th right answer in a row, and mining gets deeper veins the longer you stay on one rock.
+- **Bonuses**: extra xp for rescuing a leech, a discovery (a new card) or a second wind (a relearning card). You also get Rested xp after time away, and a Focused bonus at 90% or better recent accuracy.
+- **Mastery**: each node and recipe levels up the more you use it.
+- **Collection log**: legendaries, pets, gems and relics.
+- **Type your answers** (a per-deck toggle): a correct typed answer is *verified* and gives +25% xp and better rare odds.
+
 ## Anki import
 
 `.apkg` (and `.colpkg`) files are unzipped with JSZip and read with sql.js:
