@@ -19,6 +19,7 @@ export function HandCard({ card, relics, boss, disabled, onPlay }: { card: CardR
       <span className={`ename rarity-${e.rarity}`}>{e.name}</span>
       <span className="edesc">{e.desc(p)}</span>
       {boss && isLeech(card) && <span className="leech-tag">LEECH</span>}
+      {!(boss && isLeech(card)) && tierOf(card) > card.tierSeen && <span className="ascend">ASCEND ↑</span>}
     </button>
   );
 }

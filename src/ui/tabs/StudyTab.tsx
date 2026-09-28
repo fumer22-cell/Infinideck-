@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { formatInterval, nextLearningDue, TIER_NAMES } from '../../core/srs';
-import type { CardRow, EffectId, Tier } from '../../core/types';
+import { formatInterval, nextLearningDue } from '../../core/srs';
+import type { CardRow } from '../../core/types';
 import { ITEMS } from '../../game/items';
 import { checkActive, performAction, pushLog } from '../../game/world';
-import { checkQueueCleared, setCardEffect } from '../actions';
+import { checkQueueCleared } from '../actions';
 import { Sprite } from '../common';
 import { useApp } from '../context';
 import { ReviewPanel } from '../ReviewPanel';
 import { sfx } from '../sfx';
 import { dueQueue, pickRandom, practicePool, recordGrade, scaleXp } from '../study';
-import { TierUpModal } from '../TierUp';
 import { CombatView } from './CombatView';
 import { Scene, activityInfo, type Pop } from './Scene';
 
@@ -23,7 +22,6 @@ export function StudyTab() {
   const [practice, setPractice] = useState(false);
   const [practiceCard, setPracticeCard] = useState<CardRow | null>(null);
   const [busy, setBusy] = useState(false);
-  const [tierUp, setTierUp] = useState<{ card: CardRow; tier: Tier } | null>(null);
   const [pops, setPops] = useState<Pop[]>([]);
   const lastPractice = useRef<number | null>(null);
 
@@ -104,19 +102,12 @@ export function StudyTab() {
       else if (info.skill === 'woodcutting') sfx.hurt();
       else sfx.flip();
       await app.gainXp(xp);
-      if (rec.tierUp) setTierUp(rec.tierUp);
+      // tier-up choices wait for combat: the card shows ASCEND in your hand there
       if (isPractice) await drawPractice();
       else await load();
     } finally {
       setBusy(false);
     }
-  };
-
-  const pickEffect = async (e: EffectId) => {
-    if (!tierUp) return;
-    await setCardEffect(tierUp.card.id!, e, tierUp.tier);
-    app.toast(`${TIER_NAMES[tierUp.tier]} card empowered.`);
-    setTierUp(null);
   };
 
   return (
@@ -135,7 +126,6 @@ export function StudyTab() {
       ) : queue ? (
         <DoneForNow nextLearn={nextLearn} onPractice={() => setPractice(true)} />
       ) : null}
-      {tierUp && <TierUpModal card={tierUp.card} tier={tierUp.tier} onPick={pickEffect} />}
     </div>
   );
 }

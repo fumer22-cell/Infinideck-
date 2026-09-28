@@ -355,3 +355,10 @@ button.list-item:disabled { cursor: default; }
 .level-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .level-cell { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; background: rgba(0,0,0,0.4); border: 2px solid #000; color: var(--gold-hi); font-family: var(--pixel); font-size: 14px; cursor: pointer; }
 .hand-area .stone { margin: 4px; }
+.goal { gap: 4px; }
+.enemy-wrap.spawn .enemy-sprite { animation: spawnIn 0.5s steps(5); }
+.splat.slain { width: auto; height: auto; padding: 6px 12px; font-size: 20px; color: var(--gold-hi); }
+.splat.slain::before { background: #000; clip-path: none; box-shadow: 0 0 0 2px var(--gold); }
+.hand-card .ascend { position: absolute; bottom: -8px; font-size: 8px; background: #7a2aaa; color: #fff; padding: 1px 4px; border: 1px solid #000; animation: bob 1s steps(2) infinite; }
+@keyframes spawnIn { from { opacity: 0; transform: translateY(-16px); } }
+.pill.ascend-pill { background: #7a2aaa; color: #fff; }

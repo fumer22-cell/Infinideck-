@@ -17,7 +17,8 @@ export interface Fx {
   delay: number;
 }
 
-export function Arena({ biome, enemy, combo, relics, hud, fx, enemyHurt, playerHurt, enemyDead, player, playerSprite }: {
+export function Arena({ biome, enemy, combo, relics, hud, fx, enemyHurt, playerHurt, enemyDead, player, playerSprite, spawnKey = 0 }: {
+  spawnKey?: number;
   biome: Biome;
   enemy: EnemyState | null;
   combo: number;
@@ -45,7 +46,7 @@ export function Arena({ biome, enemy, combo, relics, hud, fx, enemyHurt, playerH
       </div>
 
       {e && (
-        <div className="enemy-wrap" style={{ top: e.boss ? '14%' : '19%' }}>
+        <div key={spawnKey} className={`enemy-wrap ${spawnKey ? 'spawn' : ''}`} style={{ top: e.boss ? '14%' : '19%' }}>
           {!enemyDead && (
             <div className="intent" aria-label="Enemy intent">
               {e.intent.kind === 'attack' && (<><Sprite name="sword" size={18} /> <span className="red">{e.intent.value}</span></>)}

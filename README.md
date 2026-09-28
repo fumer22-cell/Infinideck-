@@ -36,6 +36,22 @@ The game **never** changes scheduling and **never** pulls cards early.
 
 All skills use the classic exponential XP table up to 99.
 
+### How the skills feed each other
+
+Levels alone don't open the next tier. You also need the right tool, fuel or key, made with other skills:
+
+- **Mining** tiers need a better pickaxe: coal needs iron, mithril needs steel, and so on. Pickaxes are forged at the anvil from bars you smelt from the ore you mine.
+- **Woodcutting** works the same way with hatchets: willow needs iron, maple needs steel, and so on.
+- **Fishing**: trout and salmon need a fly rod, which costs 5 willow logs at the store. Lobster and up need a harpoon, forged from 3 steel bars.
+- **Smelting** better bars needs hotter fuel: steel burns oak logs or better, mithril willow, adamant maple, rune yew.
+- **Cooking**: dishes combine fish with crops from your farm, and heal far more than plain fish.
+- **Farming**: bones from combat fertilise crops (+50%, big bones +100%).
+- **Combat areas** each need a key dropped by the previous area's boss. Bosses also drop the ore for your next metal tier.
+
+Each gathering skill page shows your **next goal** and every step it needs.
+
+Card tier-ups (choosing a card's new combat power) only happen in combat. Cards that matured while you trained other skills wait behind the **↑** button in combat.
+
 ### Combat
 
 Tap one of three cards in your hand, reveal, and grade. Easy = critical hit, Good = normal, Hard = weak, Again = miss plus a free enemy hit. Correct answers build a combo. Every card has an effect (Strike, Mend, Ward, Venom, Insight...) whose power grows with FSRS maturity, and you choose a new effect when a card reaches a new tier. Enemies show their next intent.

@@ -45,6 +45,7 @@ const RAW: Record<string, string[]> = {
   rod: ['......kk', '.....kYk', '....kbk.', '...kbk.k', '..kbk..k', '.kbk...k', 'kbk...kk', 'kk......'],
   seed: ['........', '...kk...', '..kyyk..', '.kyyyyk.', '.kyyyyk.', '..kyyk..', '...kk...', '........'],
   crop: ['...kk...', '..kMMk..', '.kkkkkk.', 'kyyyyyyk', 'kyyyyyyk', 'kyyyyyyk', '.kyyyyk.', '..kkkk..'],
+  key: ['..kkk...', '.kyYyk..', '.ky.yk..', '.kyYyk..', '..kyk...', '..kyk...', '..kyyk..', '..kykk..'],
   bones: ['........', 'kk....kk', 'kwk..kwk', '.kwkkwk.', '..kwwk..', '.kwkkwk.', 'kwk..kwk', 'kk....kk'],
   nest: ['........', '...kk...', '..kyyk..', '.kbkkbk.', 'kbBbbBbk', 'kBbBbbBk', '.kbbbbk.', '..kkkk..'],
   bread: ['........', '..kkkk..', '.koooook', 'koYYoook', 'kooooook', 'kooooook', '.kkkkkk.', '........'],

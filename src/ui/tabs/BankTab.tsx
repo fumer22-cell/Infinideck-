@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { SHOP } from '../../game/activities';
 import { ITEMS, type ItemKind } from '../../game/items';
 import { randInt } from '../../game/rng';
-import { addItems, canEquip, equip, pushLog, removeItems } from '../../game/world';
+import { addItems, canEquip, equip, hasItems, pushLog, removeItems } from '../../game/world';
 import { ItemIcon, Sprite, TopBar } from '../common';
 import { useApp } from '../context';
 import { sfx } from '../sfx';
@@ -130,8 +130,8 @@ function ItemSheet({ id, onClose }: { id: string; onClose: () => void }) {
           {d.heal ? <button className="btn" disabled={world.food === id} onClick={setFood}>{world.food === id ? 'Your food' : 'Set as food'}</button> : null}
           {d.heal ? <button className="btn green" onClick={eatNow}>Eat</button> : null}
           {(id === 'bird-nest' || id === 'casket') && <button className="btn green" onClick={open}>Open</button>}
-          <button className="btn stone" onClick={() => sell(1)}>Sell 1 ({d.value}g)</button>
-          {n > 1 && <button className="btn stone" onClick={() => sell(n)}>Sell all ({(n * d.value).toLocaleString()}g)</button>}
+          {d.value > 0 && <button className="btn stone" onClick={() => sell(1)}>Sell 1 ({d.value}g)</button>}
+          {d.value > 0 && n > 1 && <button className="btn stone" onClick={() => sell(n)}>Sell all ({(n * d.value).toLocaleString()}g)</button>}
         </div>
         <button className="btn block stone small" onClick={onClose}>Close</button>
       </div>
@@ -142,10 +142,13 @@ function ItemSheet({ id, onClose }: { id: string; onClose: () => void }) {
 export function Shop() {
   const app = useApp();
   const { profile, lv } = app;
-  const buy = async (item: string, price: number, qty: number) => {
-    if (profile.gold < price * qty) return;
+  const buy = async (item: string, price: number, qty: number, trade?: Record<string, number>) => {
+    if (profile.gold < price * qty || (trade && !hasItems(app.world, trade, qty))) return;
     await app.updateProfile((p) => void (p.gold -= price * qty));
-    await app.updateWorld((w) => addItems(w, { [item]: qty }));
+    await app.updateWorld((w) => {
+      if (trade) removeItems(w, trade, qty);
+      addItems(w, { [item]: qty });
+    });
     sfx.coin();
     app.toast(`Bought ${qty} ${ITEMS[item].name}.`);
   };
@@ -157,14 +160,16 @@ export function Shop() {
         <div className="list">
           {SHOP.map((s) => {
             const locked = s.level && lv[s.level.skill] < s.level.level;
+            const tradeText = s.trade ? Object.entries(s.trade).map(([id, n]) => ` + ${n} ${ITEMS[id].name.toLowerCase()} (${app.world.bank[id] ?? 0})`).join('') : '';
+            const canTrade = !s.trade || hasItems(app.world, s.trade);
             return (
               <div key={s.item} className={`list-item ${locked ? 'locked' : ''}`}>
                 <ItemIcon id={s.item} size={32} />
                 <div className="name">
                   <div>{ITEMS[s.item].name}</div>
-                  <div className="small muted">{locked ? `Needs ${s.level!.skill} ${s.level!.level}` : `${s.price} gold`}</div>
+                  <div className="small muted">{locked ? `Needs ${s.level!.skill} ${s.level!.level} · ` : ''}{`${s.price} gold${tradeText}`}</div>
                 </div>
-                <button className="btn small" disabled={!!locked || profile.gold < s.price} onClick={() => buy(s.item, s.price, 1)}>Buy</button>
+                <button className="btn small" disabled={!!locked || profile.gold < s.price || !canTrade} onClick={() => buy(s.item, s.price, 1, s.trade)}>Buy</button>
                 {ITEMS[s.item].kind !== 'tool' && <button className="btn small stone" disabled={!!locked || profile.gold < s.price * 5} onClick={() => buy(s.item, s.price, 5)}>×5</button>}
               </div>
             );

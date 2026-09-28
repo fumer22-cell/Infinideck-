@@ -20,6 +20,9 @@ export interface ItemDef {
 }
 
 export const ITEMS: Record<string, ItemDef> = {};
+
+/** Log tiers, cheapest first. Better bars need hotter fuel. */
+export const LOG_ORDER = ['log-normal', 'log-oak', 'log-willow', 'log-maple', 'log-yew', 'log-magic'];
 const add = (d: ItemDef) => (ITEMS[d.id] = d);
 
 // ---------- metals ----------
@@ -65,8 +68,8 @@ for (const m of METALS) {
 // ---------- rods (shop) ----------
 const RODS = [
   { id: 'rod-basic', name: 'Fishing rod', tier: 1, level: 1, value: 10, Y: '#c8a040' },
-  { id: 'rod-fly', name: 'Fly rod', tier: 3, level: 20, value: 400, Y: '#a0e0ff' },
-  { id: 'rod-harpoon', name: 'Harpoon', tier: 5, level: 40, value: 2500, Y: '#e03a2a' },
+  { id: 'rod-fly', name: 'Fly rod', tier: 3, level: 15, value: 200, Y: '#a0e0ff' },
+  { id: 'rod-harpoon', name: 'Harpoon', tier: 5, level: 40, value: 200, Y: '#e03a2a' },
 ];
 for (const r of RODS) add({ id: r.id, name: r.name, icon: 'rod', tint: { Y: r.Y }, kind: 'tool', value: r.value, tool: { kind: 'rod', tier: r.tier, level: r.level, skill: 'fishing', bonus: 0.05 * r.tier } });
 
@@ -116,6 +119,10 @@ for (const [id, name, y, heal, value] of FISH) {
   add({ id: `cooked-${id}`, name, icon: 'fish', tint: { y: '#8a5a2a', Y: '#d0a060' }, kind: 'food', value: Math.round(value * 1.6), heal });
 }
 add({ id: 'bread', name: 'Bread', icon: 'bread', kind: 'food', value: 6, heal: 3 });
+add({ id: 'dish-soup', name: 'Onion soup', icon: 'pot', tint: { g: '#d0b080', d: '#6a4a2a' }, kind: 'food', value: 25, heal: 8 });
+add({ id: 'dish-pie', name: "Fisherman's pie", icon: 'bread', tint: { o: '#c08a4a', Y: '#f0d0a0' }, kind: 'food', value: 60, heal: 18 });
+add({ id: 'dish-stew', name: "Hunter's stew", icon: 'pot', tint: { g: '#c05a2a', d: '#6a2a1a' }, kind: 'food', value: 140, heal: 26 });
+add({ id: 'dish-feast', name: 'Shark feast', icon: 'pot', tint: { g: '#6ab07a', d: '#2a4a3a' }, kind: 'food', value: 320, heal: 38 });
 
 // ---------- farming ----------
 export const CROPS = [
@@ -138,6 +145,9 @@ add({ id: 'bones', name: 'Bones', icon: 'bones', kind: 'misc', value: 5 });
 add({ id: 'big-bones', name: 'Big bones', icon: 'bones', tint: { w: '#fff8e0' }, kind: 'misc', value: 20 });
 add({ id: 'bird-nest', name: "Bird's nest", icon: 'nest', kind: 'misc', value: 30, desc: 'Open it for seeds.' });
 add({ id: 'casket', name: 'Casket', icon: 'chest', kind: 'misc', value: 60, desc: 'Open it for coins.' });
+add({ id: 'key-crypt', name: 'Crypt key', icon: 'key', tint: { y: '#9a9486', Y: '#e8e0cc' }, kind: 'misc', value: 0, desc: 'Opens the Sunken Crypt. Dropped by the Old Graveyard boss.' });
+add({ id: 'key-bog', name: 'Bog lantern', icon: 'key', tint: { y: '#4a7a3a', Y: '#8ab04a' }, kind: 'misc', value: 0, desc: 'Lights the way into the Weeping Bog. Dropped by the Crypt boss.' });
+add({ id: 'key-keep', name: 'Keep sigil', icon: 'key', tint: { y: '#8a1414', Y: '#e03a2a' }, kind: 'misc', value: 0, desc: 'Opens the gates of the Ruined Keep. Dropped by the Bog boss.' });
 
 // ---------- trinkets (relics as jewellery) ----------
 const RING_RELICS: RelicId[] = ['ironskin', 'venomgland', 'goldtooth', 'grimoire', 'wardstone', 'comboring'];

@@ -22,6 +22,32 @@ const HAND = 3;
 const MAX_HAND = 5;
 let fxSeq = 0;
 
+/**
+ * Fill the hand from `pool` (due cards, or practice cards when nothing is due).
+ * Bosses pull due leeches first. Synchronous: call it inside updateWorld.
+ */
+export function topUpHand(w: World, pool: CardRow[], onPractice: boolean) {
+  const cs = w.combat;
+  if (!cs) return;
+  const valid = new Set(pool.map((q) => q.id!));
+  if (!onPractice) cs.hand = cs.hand.filter((id) => valid.has(id));
+  const target = Math.min(MAX_HAND, Math.max(HAND, cs.hand.length) + (cs.bonusDraw ?? 0));
+  cs.bonusDraw = 0;
+  const inHand = new Set(cs.hand);
+  let pile = pool.filter((q) => !inHand.has(q.id!));
+  if (onPractice) pile = [...pile].sort(() => Math.random() - 0.5);
+  else if (cs.enemy.boss) pile = [...pile.filter(isLeech), ...pile.filter((q) => !isLeech(q))];
+  const drawn = pile.slice(0, Math.max(0, target - cs.hand.length));
+  if (cs.enemy.boss && !onPractice) {
+    const leeches = drawn.filter(isLeech).map((q) => q.id!);
+    if (leeches.length) {
+      cs.leeches = [...new Set([...cs.leeches, ...leeches])];
+      pushLog(w, `${cs.enemy.name} drags ${leeches.length} leech card${leeches.length > 1 ? 's' : ''} into your hand!`, 'bad');
+    }
+  }
+  cs.hand = [...cs.hand, ...drawn.map((d) => d.id!)];
+}
+
 export function CombatView({ queue, reload, practice, setPractice, nextLearn }: { queue: CardRow[] | null; reload: () => Promise<void>; practice: boolean; setPractice: (p: boolean) => void; nextLearn: number | null }) {
   const app = useApp();
   const { world, lv, maxHp, settings } = app;
@@ -35,6 +61,15 @@ export function CombatView({ queue, reload, practice, setPractice, nextLearn }: 
   const [enemyDead, setEnemyDead] = useState(false);
   const [tierUp, setTierUp] = useState<{ card: CardRow; tier: Tier } | null>(null);
   const [dead, setDead] = useState<{ lost: number } | null>(null);
+  /** a card whose maturity rose (maybe while training another skill): choose its power before playing */
+  const [ascending, setAscending] = useState<CardRow | null>(null);
+  const [spawnKey, setSpawnKey] = useState(0);
+  /** cards whose maturity rose while training other skills, waiting to choose a new power */
+  const [pending, setPending] = useState<CardRow[]>([]);
+  const loadPending = async () => setPending(await db.cards.where('state').equals(State.Review).filter((r) => tierOf(r) > r.tierSeen).toArray());
+  useEffect(() => {
+    void loadPending();
+  }, []);
   const logRef = useRef<HTMLDivElement>(null);
   const c = world.combat;
   const onPractice = !queue?.length;
@@ -50,41 +85,19 @@ export function CombatView({ queue, reload, practice, setPractice, nextLearn }: 
     }
   }, [area.id]);
 
-  /** Fill the hand from due cards (bosses pull due leeches first), or practice cards when nothing is due. */
-  const fillHand = async (w: World) => {
-    const cs = w.combat;
-    if (!cs || !queue) return;
-    const extra = cs.bonusDraw ?? 0;
-    cs.bonusDraw = 0;
-    const dueIds = new Set(queue.map((q) => q.id!));
-    if (!onPractice) cs.hand = cs.hand.filter((id) => dueIds.has(id));
-    const target = Math.min(MAX_HAND, Math.max(HAND, cs.hand.length + extra));
-    const inHand = new Set(cs.hand);
-    let drawn: CardRow[] = [];
-    if (!onPractice) {
-      let pile = queue.filter((q) => !inHand.has(q.id!));
-      if (cs.enemy.boss) pile = [...pile.filter(isLeech), ...pile.filter((q) => !isLeech(q))];
-      drawn = pile.slice(0, target - cs.hand.length);
-      const leeches = cs.enemy.boss ? drawn.filter(isLeech).map((q) => q.id!) : [];
-      if (leeches.length) {
-        cs.leeches = [...new Set([...cs.leeches, ...leeches])];
-        pushLog(w, `${cs.enemy.name} drags ${leeches.length} leech card${leeches.length > 1 ? 's' : ''} into your hand!`, 'bad');
-      }
-    } else if (practice) {
-      const pool = (await practicePool()).filter((q) => !inHand.has(q.id!));
-      while (drawn.length < target - cs.hand.length && pool.length) drawn.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-    }
-    cs.hand = [...cs.hand, ...drawn.map((d) => d.id!)];
-  };
-
-  // keep the hand topped up whenever the due queue changes
+  // Keep the hand topped up. Card lookups happen first; the hand is then changed
+  // inside updateWorld on the freshest world, so a play made meanwhile is never overwritten.
   useEffect(() => {
     if (!c || !queue) return;
+    let cancelled = false;
     void (async () => {
-      const next: World = structuredClone(world);
-      await fillHand(next);
-      if (JSON.stringify(next.combat!.hand) !== JSON.stringify(c.hand)) await app.updateWorld((w) => Object.assign(w, next));
+      const pool = onPractice ? (practice ? await practicePool() : []) : queue;
+      if (cancelled) return;
+      await app.updateWorld((w) => topUpHand(w, pool, onPractice));
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [queue, practice, c?.enemy.name, c?.enemy.boss, c?.hand.join(',')]);
 
   useEffect(() => {
@@ -211,8 +224,8 @@ export function CombatView({ queue, reload, practice, setPractice, nextLearn }: 
         });
         setTimeout(sfx.coin, animMs + 200);
         setEnemyDead(true);
-        await new Promise((ok) => setTimeout(ok, Math.max(700, animMs + 300)));
-        setEnemyDead(false);
+        setTimeout(() => addFx([{ kind: 'splat', target: 'enemy', text: 'SLAIN', cls: 'slain', x: 34, y: 34, delay: 0 }]), animMs);
+        await new Promise((ok) => setTimeout(ok, Math.max(1100, animMs + 700)));
         if (res.boss) {
           // Beating the boss clears leech status (game flag only; scheduling untouched).
           const ids = world.combat?.leeches ?? [];
@@ -224,15 +237,19 @@ export function CombatView({ queue, reload, practice, setPractice, nextLearn }: 
           app.toast(ids.length ? `Boss slain! ${ids.length} leech${ids.length > 1 ? 'es' : ''} purged.` : 'Boss slain!');
         }
         await app.updateWorld((w) => {
-          if (res.boss && w.combat) w.combat.leeches = [];
+          if (!w.combat) return;
+          if (res.boss) w.combat.leeches = [];
           nextEnemy(w);
-          pushLog(w, `A ${w.combat!.enemy.name} approaches.`, 'info');
+          pushLog(w, `A new ${w.combat.enemy.name} appears (${w.combat.enemy.hp} HP).`, 'info');
         });
+        setSpawnKey((k) => k + 1);
+        setEnemyDead(false);
       }
       if (!onPractice) {
         await reload();
         await checkQueueCleared(app);
       }
+      void loadPending();
     } finally {
       setBusy(false);
     }
@@ -279,6 +296,7 @@ export function CombatView({ queue, reload, practice, setPractice, nextLearn }: 
   return (
     <div className="run">
       <Arena
+        spawnKey={spawnKey}
         biome={area.biome}
         enemy={c?.enemy ?? null}
         combo={c?.combo ?? 0}
@@ -299,6 +317,9 @@ export function CombatView({ queue, reload, practice, setPractice, nextLearn }: 
               <button className="pill red" onClick={fightBoss} style={{ minHeight: 36 }}><Sprite name="skull" size={14} /> Boss</button>
             )}
             {!bossReady(world, area) && <span className="pill small">Boss {world.bossProgress[area.id] ?? 0}/{area.bossAfter}</span>}
+            {pending.length > 0 && (
+              <button className="pill ascend-pill" onClick={() => setAscending(pending[0])} style={{ minHeight: 36 }} aria-label={`${pending.length} cards ready to ascend`}>↑{pending.length}</button>
+            )}
           </>
         }
       />
@@ -306,7 +327,7 @@ export function CombatView({ queue, reload, practice, setPractice, nextLearn }: 
         {handRows.length ? (
           <div className="hand">
             {handRows.map((r) => (
-              <HandCard key={r.id} card={r} relics={b.relics} boss={!!c?.enemy.boss} disabled={busy || enemyDead} onPlay={() => { sfx.tap(); setActive(r); }} />
+              <HandCard key={r.id} card={r} relics={b.relics} boss={!!c?.enemy.boss} disabled={busy || enemyDead} onPlay={() => { sfx.tap(); if (tierOf(r) > r.tierSeen) setAscending(r); else setActive(r); }} />
             ))}
           </div>
         ) : queue && !queue.length && !practice ? (
@@ -342,6 +363,25 @@ export function CombatView({ queue, reload, practice, setPractice, nextLearn }: 
         </div>
       )}
       {tierUp && <TierUpModal card={tierUp.card} tier={tierUp.tier} onPick={pickEffect} />}
+      {ascending && (
+        <TierUpModal
+          card={ascending}
+          tier={tierOf(ascending)}
+          onPick={async (e) => {
+            const tier = tierOf(ascending);
+            await setCardEffect(ascending.id!, e, tier);
+            app.toast(`${TIER_NAMES[tier]} card empowered.`);
+            const fresh = { ...ascending, effect: e, tierSeen: tier };
+            const inHand = cards.has(fresh.id!);
+            if (inHand) setCards((m) => new Map(m).set(fresh.id!, fresh));
+            const rest = pending.filter((p) => p.id !== fresh.id);
+            setPending(rest);
+            // from the hand: go straight on to playing it; from the Ascend button: offer the next card
+            setAscending(inHand ? null : rest[0] ?? null);
+            if (inHand) setActive(fresh);
+          }}
+        />
+      )}
     </div>
   );
 }

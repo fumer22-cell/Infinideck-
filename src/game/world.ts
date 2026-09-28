@@ -10,7 +10,7 @@ import { AREA_BY_ID, COOKING, FORGING, GATHER, SEEDS, SMELTING, plotCount, smelt
 import { ADVENTURER } from './classes';
 import { playCard, startCombat, type CombatEvent } from './combat';
 import { intentFor, type EnemyState } from './enemies';
-import { ITEMS, SLOTS, type Slot, type ToolKind } from './items';
+import { ITEMS, LOG_ORDER, METALS, SLOTS, type Slot, type ToolKind } from './items';
 import type { RelicId } from './relics';
 import { rand, randInt, type Rng } from './rng';
 import { attackMult, defenceReduction, goldMult, maxHpFor, strengthMult, type Levels, type SkillId } from './skills';
@@ -24,7 +24,7 @@ export type Active =
 export type CombatStyle = 'attack' | 'strength' | 'defence';
 
 export interface Furnace { recipe: string; total: number; done: number; start: number; msEach: number }
-export interface Plot { seed: string; planted: number; growMs: number; bonus: number }
+export interface Plot { seed: string; planted: number; growMs: number; bonus: number; /** extra yield from fertiliser (0.5 = +50%) */ fert?: number }
 
 export interface CombatSession {
   area: string;
@@ -106,11 +106,12 @@ export function removeItems(w: World, items: Items, times = 1) {
     if (w.bank[id] <= 0) delete w.bank[id];
   }
 }
-export const logsInBank = (w: World) => Object.entries(w.bank).filter(([id]) => id.startsWith('log-')).reduce((a, [, n]) => a + n, 0);
-/** Burn logs as furnace fuel, cheapest first. */
-function burnLogs(w: World, n: number) {
-  const logs = Object.keys(w.bank).filter((id) => id.startsWith('log-')).sort((a, b) => ITEMS[a].value - ITEMS[b].value);
-  for (const id of logs) {
+/** Logs at least as hot as `minFuel` (index into LOG_ORDER). */
+const fuelLogs = (minFuel: number) => LOG_ORDER.slice(minFuel);
+export const logsInBank = (w: World, minFuel = 0) => fuelLogs(minFuel).reduce((a, id) => a + (w.bank[id] ?? 0), 0);
+/** Burn logs as furnace fuel, the weakest acceptable ones first. */
+function burnLogs(w: World, n: number, minFuel: number) {
+  for (const id of fuelLogs(minFuel).filter((l) => w.bank[l])) {
     if (n <= 0) break;
     const take = Math.min(n, w.bank[id]);
     removeItems(w, { [id]: take });
@@ -119,7 +120,7 @@ function burnLogs(w: World, n: number) {
 }
 
 // ---------- tools & gear ----------
-export function bestTool(w: World, kind: ToolKind, lv: Levels): { id: string; bonus: number } | null {
+export function bestTool(w: World, kind: ToolKind, lv: Levels): { id: string; bonus: number; tier: number } | null {
   let best: { id: string; bonus: number; tier: number } | null = null;
   for (const id of Object.keys(w.bank)) {
     const t = ITEMS[id]?.tool;
@@ -128,7 +129,19 @@ export function bestTool(w: World, kind: ToolKind, lv: Levels): { id: string; bo
   }
   return best;
 }
-const TOOL_FOR: Record<string, ToolKind> = { mining: 'pickaxe', woodcutting: 'axe', fishing: 'rod' };
+export const TOOL_FOR: Record<string, ToolKind> = { mining: 'pickaxe', woodcutting: 'axe', fishing: 'rod' };
+
+/** Human name of the weakest tool of a tier, and where it comes from. */
+export function toolNeeded(kind: ToolKind, tier: number): { name: string; how: string } {
+  if (kind === 'rod') {
+    if (tier <= 1) return { name: 'fishing rod', how: 'Buy one in the general store.' };
+    if (tier <= 3) return { name: 'fly rod', how: 'Trade 5 willow logs and 150 gold at the general store.' };
+    return { name: 'harpoon', how: 'Forge one from 3 steel bars (Smithing 35).' };
+  }
+  const m = METALS[Math.min(METALS.length, tier) - 1];
+  const piece = kind === 'pickaxe' ? 'pickaxe' : 'hatchet';
+  return { name: `${m.name.toLowerCase()} ${piece}`, how: tier <= 1 ? 'Buy one in the general store.' : `Forge one from 2 ${m.name.toLowerCase()} bars (Smithing ${m.smith + 1}).` };
+}
 
 export function canEquip(id: string, lv: Levels): boolean {
   const e = ITEMS[id]?.equip;
@@ -194,11 +207,17 @@ export function checkActive(w: World, lv: Levels): string | null {
   if (a.kind === 'gather') {
     const node = GATHER.find((n) => n.id === a.id)!;
     if (lv[node.skill] < node.level) return `Needs ${node.skill} level ${node.level}.`;
-    if (!bestTool(w, TOOL_FOR[node.skill], lv)) return `You need a ${TOOL_FOR[node.skill] === 'rod' ? 'fishing rod' : TOOL_FOR[node.skill] === 'axe' ? 'hatchet' : 'pickaxe'}.`;
+    const tool = bestTool(w, TOOL_FOR[node.skill], lv);
+    if (!tool || tool.tier < node.tool) {
+      const need = toolNeeded(TOOL_FOR[node.skill], node.tool);
+      return `${node.name} needs a ${need.name} or better. ${need.how}`;
+    }
   }
   if (a.kind === 'cook') {
     const r = COOKING.find((c) => c.id === a.id)!;
-    if (!w.bank[r.input]) return `Out of ${ITEMS[r.input].name.toLowerCase()}.`;
+    if (lv.cooking < r.level) return `Needs cooking level ${r.level}.`;
+    const missing = Object.entries(r.inputs).find(([id, n]) => (w.bank[id] ?? 0) < n);
+    if (missing) return `Out of ${ITEMS[missing[0]].name.toLowerCase()}.`;
   }
   if (a.kind === 'forge') {
     const r = FORGING.find((f) => f.id === a.id)!;
@@ -234,7 +253,7 @@ export function performAction(w: World, lv: Levels, cardTier: Tier, rng: Rng = r
   }
   if (a.kind === 'cook') {
     const r = COOKING.find((c) => c.id === a.id)!;
-    removeItems(w, { [r.input]: 1 });
+    removeItems(w, r.inputs);
     give(r.output, 1);
     addItems(w, items);
     msgs.push({ text: `You cook the ${r.name.toLowerCase()}.`, tone: 'loot' });
@@ -256,7 +275,7 @@ export function performAction(w: World, lv: Levels, cardTier: Tier, rng: Rng = r
 // ---------- furnace (real time) ----------
 export function maxSmeltable(w: World, recipeId: string, lv: Levels): number {
   const r = SMELTING.find((s) => s.id === recipeId)!;
-  let n = Math.min(smeltBatchCap(lv.smithing), logsInBank(w));
+  let n = Math.min(smeltBatchCap(lv.smithing), logsInBank(w, r.fuel));
   for (const [id, per] of Object.entries(r.inputs)) n = Math.min(n, Math.floor((w.bank[id] ?? 0) / per));
   return Math.max(0, n);
 }
@@ -266,7 +285,7 @@ export function startSmelt(w: World, recipeId: string, qty: number, lv: Levels, 
   const r = SMELTING.find((s) => s.id === recipeId)!;
   if (w.furnace || lv.smithing < r.level || qty < 1 || qty > maxSmeltable(w, recipeId, lv)) return false;
   removeItems(w, r.inputs, qty);
-  burnLogs(w, qty);
+  burnLogs(w, qty, r.fuel);
   w.furnace = { recipe: recipeId, total: qty, done: 0, start: now, msEach: Math.round(r.msEach * (1 - 0.1 * cardTier)) };
   return true;
 }
@@ -291,11 +310,19 @@ export function syncPlots(w: World, lv: Levels) {
   while (w.plots.length < n) w.plots.push(null);
 }
 
-export function plant(w: World, idx: number, seedId: string, lv: Levels, cardTier: Tier, now = Date.now()): boolean {
+/** Bones from combat make good fertiliser. */
+export const FERTILISER: Record<string, number> = { bones: 0.5, 'big-bones': 1 };
+
+export function plant(w: World, idx: number, seedId: string, lv: Levels, cardTier: Tier, now = Date.now(), fertiliser: string | null = null): boolean {
   const s = SEEDS.find((x) => x.id === seedId)!;
   if (w.plots[idx] || lv.farming < s.level || !w.bank[s.seed]) return false;
   removeItems(w, { [s.seed]: 1 });
-  w.plots[idx] = { seed: seedId, planted: now, growMs: s.growMs, bonus: cardTier };
+  let fert = 0;
+  if (fertiliser && FERTILISER[fertiliser] && w.bank[fertiliser]) {
+    removeItems(w, { [fertiliser]: 1 });
+    fert = FERTILISER[fertiliser];
+  }
+  w.plots[idx] = { seed: seedId, planted: now, growMs: s.growMs, bonus: cardTier, fert };
   return true;
 }
 
@@ -305,7 +332,7 @@ export function harvest(w: World, idx: number, now = Date.now(), rng: Rng = rand
   const p = w.plots[idx];
   if (!p || !plotReady(p, now)) return null;
   const s = SEEDS.find((x) => x.id === p.seed)!;
-  const qty = Math.round(randInt(s.yield[0], s.yield[1], rng) * (1 + 0.25 * p.bonus));
+  const qty = Math.round(randInt(s.yield[0], s.yield[1], rng) * (1 + 0.25 * p.bonus + (p.fert ?? 0)));
   addItems(w, { [s.crop]: qty });
   w.plots[idx] = null;
   return { crop: s.crop, qty, xp: s.plantXp + qty * s.harvestXp };
@@ -351,6 +378,14 @@ export function startTrip(w: World, area: AreaDef, rng: Rng = rand): CombatSessi
   const def = area.monsters[Math.floor(rng() * area.monsters.length)];
   w.combat = { area: area.id, enemy: spawn(def), kills: 0, hand: [], combo: 0, cardsPlayed: 0, deathWardUsed: false, block: 0, leeches: [] };
   return w.combat;
+}
+
+/** Why an area can't be entered yet, or null. */
+export function areaLocked(w: World, area: AreaDef, combatLvl: number): string | null {
+  const why: string[] = [];
+  if (combatLvl < area.level) why.push(`Combat level ${area.level}`);
+  if (area.key && !w.bank[area.key]) why.push(`needs the ${ITEMS[area.key].name.toLowerCase()}`);
+  return why.length ? why.join(' · ') : null;
 }
 
 export function bossReady(w: World, area: AreaDef) {
@@ -417,7 +452,8 @@ export function combatPlay(
   if (killed) {
     const area = AREA_BY_ID[c.area];
     const def = c.enemy.boss ? area.boss : area.monsters.find((m) => m.id === c.enemy.id)!;
-    out.loot = rollDrops(def.drops, rng);
+    // keys are only needed once
+    out.loot = rollDrops(def.drops.filter((d) => !(d.item.startsWith('key-') && w.bank[d.item])), rng);
     const goldMul = goldMult(lv.scholarship) * (b.relics.includes('goldtooth') ? 1.25 : 1);
     out.gold = Math.round(randInt(def.gold[0], def.gold[1], rng) * goldMul);
     addItems(w, out.loot);

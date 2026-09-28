@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
-import type { CardRow, EffectId, Tier } from '../core/types';
-import { TIER_NAMES } from '../core/srs';
-import { checkQueueCleared, setCardEffect } from './actions';
+import type { CardRow, Tier } from '../core/types';
+import { checkQueueCleared } from './actions';
 import { useApp } from './context';
 import { ReviewPanel } from './ReviewPanel';
 import { dueQueue, pickRandom, practicePool, recordGrade } from './study';
-import { TierUpModal } from './TierUp';
 
 /**
  * A skill check: answer one card to start a real-time task (light the furnace,
@@ -18,7 +16,6 @@ export function CardCheck({ title, onDone, onCancel }: { title: string; onDone: 
   const [practice, setPractice] = useState(false);
   const [empty, setEmpty] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [tierUp, setTierUp] = useState<{ card: CardRow; tier: Tier; result: Tier } | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -39,15 +36,7 @@ export function CardCheck({ title, onDone, onCancel }: { title: string; onDone: 
     const rec = await recordGrade(app, card, g, practice);
     if (rec.scholarship) await app.gainXp({ scholarship: rec.scholarship });
     if (!practice) await checkQueueCleared(app);
-    if (rec.tierUp) setTierUp({ ...rec.tierUp, result: rec.tier });
-    else onDone(rec.tier);
-  };
-
-  const pickEffect = async (e: EffectId) => {
-    if (!tierUp) return;
-    await setCardEffect(tierUp.card.id!, e, tierUp.tier);
-    app.toast(`${TIER_NAMES[tierUp.tier]} card empowered.`);
-    onDone(tierUp.result);
+    onDone(rec.tier);
   };
 
   return (
@@ -66,7 +55,6 @@ export function CardCheck({ title, onDone, onCancel }: { title: string; onDone: 
           </div>
         )}
       </div>
-      {tierUp && <TierUpModal card={tierUp.card} tier={tierUp.tier} onPick={pickEffect} />}
     </div>
   );
 }

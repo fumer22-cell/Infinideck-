@@ -214,6 +214,79 @@ describe('combat trips', () => {
   });
 });
 
+describe('skills depend on each other', () => {
+  it('better rocks need a better pickaxe, which needs smithing, which needs mining', () => {
+    const w = W.newWorld(40);
+    w.active = { kind: 'gather', id: 'rock-coal' };
+    const lv = lvAt({ mining: 25, smithing: 20 });
+    expect(W.checkActive(w, lv)).toMatch(/iron pickaxe.*2 iron bars.*Smithing 16/);
+    // mine iron → smelt → forge an iron pickaxe → coal opens up
+    w.bank['bar-iron'] = 2;
+    w.active = { kind: 'forge', id: 'forge-iron-pickaxe' };
+    expect(W.performAction(w, lv, 0).ok).toBe(true);
+    w.active = { kind: 'gather', id: 'rock-coal' };
+    expect(W.checkActive(w, lv)).toBeNull();
+  });
+
+  it('trees and fishing spots are gated by hatchets and rods too', () => {
+    const w = W.newWorld(40);
+    w.active = { kind: 'gather', id: 'tree-willow' };
+    expect(W.checkActive(w, lvAt({ woodcutting: 30 }))).toMatch(/iron hatchet/);
+    w.active = { kind: 'gather', id: 'spot-trout' };
+    expect(W.checkActive(w, lvAt({ fishing: 20 }))).toMatch(/fly rod.*willow logs/);
+    w.active = { kind: 'gather', id: 'spot-lobster' };
+    expect(W.checkActive(w, lvAt({ fishing: 45 }))).toMatch(/harpoon.*steel bars/);
+  });
+
+  it('better bars need hotter logs', () => {
+    const w = W.newWorld(40);
+    Object.assign(w.bank, { 'ore-iron': 5, 'ore-coal': 10, 'log-normal': 5 });
+    const lv = lvAt({ smithing: 30 });
+    expect(W.maxSmeltable(w, 'smelt-steel', lv)).toBe(0);
+    w.bank['log-oak'] = 2;
+    w.bank['log-willow'] = 1;
+    expect(W.maxSmeltable(w, 'smelt-steel', lv)).toBe(3);
+    expect(W.startSmelt(w, 'smelt-steel', 3, lv, 0, 0)).toBe(true);
+    expect(w.bank['log-normal']).toBe(5); // normal logs were not burned
+    expect(w.bank['log-oak']).toBeUndefined();
+    expect(w.bank['log-willow']).toBeUndefined();
+  });
+
+  it('dishes combine fish with crops', () => {
+    const w = W.newWorld(40);
+    Object.assign(w.bank, { 'raw-trout': 1, 'crop-potato': 1 });
+    w.active = { kind: 'cook', id: 'cook-pie' };
+    expect(W.checkActive(w, lvAt({ cooking: 30 }))).toMatch(/potato/);
+    w.bank['crop-potato'] = 2;
+    expect(W.performAction(w, lvAt({ cooking: 30 }), 0).items).toEqual({ 'dish-pie': 1 });
+    expect(w.bank['raw-trout']).toBeUndefined();
+  });
+
+  it('bones from combat fertilise crops', () => {
+    const w = W.newWorld(40);
+    w.bank['big-bones'] = 1;
+    W.plant(w, 0, SEEDS[0].id, lvAt(), 0, 0, 'big-bones');
+    expect(w.bank['big-bones']).toBeUndefined();
+    expect(W.harvest(w, 0, SEEDS[0].growMs, () => 0)!.qty).toBe(8); // 4 × (1 + 100%)
+  });
+
+  it('each area needs the key dropped by the previous boss', () => {
+    const w = W.newWorld(40);
+    const crypt = AREA_BY_ID.crypt;
+    expect(W.areaLocked(w, crypt, 12)).toMatch(/crypt key/);
+    W.startTrip(w, AREA_BY_ID.graveyard, () => 0);
+    W.nextEnemy(w, () => 0, true);
+    w.combat!.enemy.hp = 1;
+    const r = W.combatPlay(w, lvAt(), 40, { effect: 'attack', tier: 1, wasNew: false }, 3, false, () => 0);
+    expect(r.loot['key-crypt']).toBe(1);
+    expect(W.areaLocked(w, crypt, 12)).toBeNull();
+    // the key only drops once
+    W.nextEnemy(w, () => 0, true);
+    w.combat!.enemy.hp = 1;
+    expect(W.combatPlay(w, lvAt(), 40, { effect: 'attack', tier: 1, wasNew: false }, 3, false, () => 0).loot['key-crypt']).toBeUndefined();
+  });
+});
+
 describe('migration', () => {
   it('refunds gold spent on retired upgrades', () => {
     expect(metaRefund({ vitality: 2, relicseeker: 1 })).toBe(100 + 200 + 500);
