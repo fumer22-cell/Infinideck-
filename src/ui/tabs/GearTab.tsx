@@ -1,7 +1,7 @@
 import { ITEMS, SLOTS, type Slot } from '../../game/items';
 import { combatLevel, SKILL_BY_ID } from '../../game/skills';
 import { bonuses, canEquip, equip, unequip, type CombatStyle } from '../../game/world';
-import { ItemIcon, Sprite } from '../common';
+import { ItemIcon, PageHeader, SectionTitle, Sprite } from '../common';
 import { useApp } from '../context';
 import { HeroView } from '../HeroView';
 import { heroLook } from '../heroLook';
@@ -25,41 +25,38 @@ export function GearTab() {
 
   return (
     <div className="screen">
-      <div className="row">
-        <h1 className="grow">Gear</h1>
-        <span className="pill">Combat {combatLevel(lv)}</span>
-      </div>
-      <div className="stone col">
-        <div className="row">
-          <HeroView look={heroLook(world, lv, 'sword')} size={72} label="Your character in their gear" />
-          <div className="grow">
-            <div className="hpbar" style={{ width: '100%' }}>
+      <PageHeader title="Gear" sub="Equipment, food and style" right={<span className="pill gold num">Combat {combatLevel(lv)}</span>} />
+      <div className="stone gilded col">
+        <div className="row" style={{ gap: 12 }}>
+          <HeroView look={heroLook(world, lv, 'sword')} size={78} label="Your character in their gear" />
+          <div className="grow col" style={{ gap: 6 }}>
+            <div className="hpbar" style={{ width: '100%', height: 16 }}>
               <i style={{ width: `${(world.hp / maxHp) * 100}%` }} />
-              <span>{world.hp}/{maxHp} HP</span>
+              <span style={{ lineHeight: '12px', fontSize: 10 }}>{world.hp} / {maxHp} HP</span>
             </div>
-            <div className="small muted" style={{ marginTop: 4 }}>{world.combat ? 'In combat: heal by eating.' : world.hp < maxHp ? 'Recovering 1 HP every 20 seconds.' : 'Fully rested.'}</div>
+            <div className="small muted">{world.combat ? 'In combat: heal by eating.' : world.hp < maxHp ? 'Recovering 1 HP every 20 seconds.' : 'Fully rested.'}</div>
           </div>
         </div>
-        <div className="grid2 small">
-          <span>Damage</span><span>×{b.dmgMult.toFixed(2)}</span>
-          <span>Damage taken</span><span>−{Math.round(b.reduction * 100)}%</span>
-          <span>Weapon</span><span>+{Math.round(b.weaponDmg * 100)}%</span>
-          <span>Armour</span><span>{Math.round(b.armourDr * 100)}%</span>
+        <div className="stat-grid">
+          <div className="stat"><b>×{b.dmgMult.toFixed(2)}</b><span>DAMAGE</span></div>
+          <div className="stat"><b>−{Math.round(b.reduction * 100)}%</b><span>HITS TAKEN</span></div>
+          <div className="stat"><b>+{Math.round(b.weaponDmg * 100)}%</b><span>WEAPON</span></div>
+          <div className="stat"><b>{Math.round(b.armourDr * 100)}%</b><span>ARMOUR</span></div>
         </div>
       </div>
 
+      <SectionTitle note="tap to take off">Equipped</SectionTitle>
       <div className="gear-grid">
         {SLOTS.map((slot) => {
           const id = world.equip[slot];
           return (
-            <button key={slot} className="gear-slot" onClick={() => id && doUnequip(slot)} aria-label={id ? `Unequip ${ITEMS[id].name}` : `${SLOT_LABEL[slot]} slot, empty`}>
+            <button key={slot} className={`gear-slot ${id ? 'filled' : ''}`} onClick={() => id && doUnequip(slot)} aria-label={id ? `Unequip ${ITEMS[id].name}` : `${SLOT_LABEL[slot]} slot, empty`}>
               {id ? <ItemIcon id={id} size={36} /> : <Sprite name={SLOT_ICON[slot]} size={28} className="ghost" />}
               <span className="small">{id ? ITEMS[id].name : SLOT_LABEL[slot]}</span>
             </button>
           );
         })}
       </div>
-      <div className="small muted center">Tap an equipped item to take it off.</div>
 
       <div className="stone col">
         <h3>Combat style</h3>
@@ -72,7 +69,7 @@ export function GearTab() {
 
       <div className="stone col">
         <h3>Food</h3>
-        <div className="small muted">Eaten automatically below a third of your HP in combat, or tap Eat.</div>
+        <div className="desc small">Eaten automatically below a third of your HP in combat, or tap Eat.</div>
         {foods.length ? (
           <div className="bank-grid">
             {foods.map((id) => (
@@ -87,9 +84,9 @@ export function GearTab() {
         )}
       </div>
 
-      <h3>In your bank</h3>
+      <SectionTitle>In your bank</SectionTitle>
       <div className="list">
-        {equippable.length === 0 && <div className="small muted">Nothing to equip yet. Forge gear at the anvil, or win it in combat.</div>}
+        {equippable.length === 0 && <div className="desc small">Nothing to equip yet. Forge gear at the anvil, or win it in combat.</div>}
         {equippable.map((id) => {
           const e = ITEMS[id].equip!;
           const ok = canEquip(id, lv);

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { addXp, DEFAULT_PROFILE, loadProfile, saveProfile, type LevelUp, type Profile } from '../core/profile';
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, type Settings } from '../core/settings';
 import { db } from '../core/db';
+import { countDue } from '../core/srs';
 import { ITEMS } from '../game/items';
 import { levels, maxHpFor } from '../game/skills';
 import { loadWorld, newWorld, pushLog, regen, saveWorld, syncPlots, tickFurnace, type World } from '../game/world';
@@ -155,13 +156,31 @@ export function App() {
   };
   const closeFanfare = useCallback(() => setFanfare(null), []);
 
+  // tab badges: cards due, real-time work ready, rewards waiting
+  const [dueCount, setDueCount] = useState(0);
+  useEffect(() => {
+    if (!ready) return;
+    const refresh = () => void countDue(Date.now(), settings).then((c) => setDueCount(c.total));
+    refresh();
+    const t = setInterval(refresh, 30_000);
+    return () => clearInterval(t);
+  }, [ready, stack, settings, profile.stats.reviews]);
+  const now = Date.now();
+  const readyPlots = world.plots.filter((p) => p && now - p.planted >= p.growMs).length;
+  const badges: Partial<Record<Tab, { text?: string; label: string; tone?: string }>> = {};
+  if (dueCount) badges.study = { text: dueCount > 99 ? '99+' : String(dueCount), label: `${dueCount} cards due` };
+  if (readyPlots) badges.skills = { text: String(readyPlots), label: `${readyPlots} crops ready`, tone: 'green' };
+  if (profile.chestPending) badges.journey = { label: 'streak chest waiting' };
+
   return (
     <Ctx.Provider value={app}>
       <div className="app">
         {!ready ? (
-          <div className="screen" style={{ justifyContent: 'center' }}>
+          <div className="splash">
+            <Sprite name="flame" size={40} className="flicker" />
             <div className="title-logo">GRIMRECALL</div>
-            {loadError && <div className="leather serif center" style={{ fontSize: 16 }}>{loadError}</div>}
+            <div className="subtitle">Remember, or perish.</div>
+            {loadError && <div className="leather desc center">{loadError}</div>}
           </div>
         ) : (
           <>
@@ -169,12 +188,16 @@ export function App() {
               <Route screen={screen} key={stack.length + screen.name} />
             </div>
             <nav className="tabbar" aria-label="Main">
-              {TABS.map((t) => (
-                <button key={t.id} className={`tab ${rootTab === t.id ? 'on' : ''}`} onClick={() => { sfx.tap(); setStack([{ name: t.id }]); }} aria-current={rootTab === t.id ? 'page' : undefined}>
-                  <Sprite name={t.icon} size={22} />
-                  <span>{t.label}</span>
-                </button>
-              ))}
+              {TABS.map((t) => {
+                const badge = badges[t.id];
+                return (
+                  <button key={t.id} className={`tab ${rootTab === t.id ? 'on' : ''}`} onClick={() => { sfx.tap(); setStack([{ name: t.id }]); }} aria-current={rootTab === t.id ? 'page' : undefined} aria-label={badge ? `${t.label} (${badge.label})` : t.label}>
+                    <Sprite name={t.icon} size={22} />
+                    <span>{t.label}</span>
+                    {badge && <span className={`badge ${badge.text ? '' : 'dot'} ${badge.tone ?? ''}`}>{badge.text}</span>}
+                  </button>
+                );
+              })}
             </nav>
           </>
         )}

@@ -3,7 +3,7 @@ import { SHOP } from '../../game/activities';
 import { ITEMS, type ItemKind } from '../../game/items';
 import { randInt } from '../../game/rng';
 import { addItems, canEquip, equip, hasItems, pushLog, removeItems } from '../../game/world';
-import { ItemIcon, Sprite, TopBar } from '../common';
+import { EmptyState, GoldPill, ItemIcon, NavRow, PageHeader, SectionTitle, TopBar } from '../common';
 import { useApp } from '../context';
 import { sfx } from '../sfx';
 
@@ -19,30 +19,28 @@ export function BankTab() {
   const worth = ids.reduce((a, id) => a + ITEMS[id].value * world.bank[id], 0);
   return (
     <div className="screen">
-      <div className="row">
-        <h1 className="grow">Bank</h1>
-        <span className="pill"><Sprite name="coin" size={16} /> {profile.gold.toLocaleString()}</span>
-      </div>
-      <button className="btn block" onClick={() => app.go({ name: 'shop' })}><Sprite name="coin" size={18} /> General store</button>
-      <div className="small muted">{ids.length} kinds of item · worth {worth.toLocaleString()} gold</div>
+      <PageHeader title="Bank" sub={`${ids.length} kinds of item · worth ${worth.toLocaleString()} gold`} right={<GoldPill amount={profile.gold} />} />
+      <nav className="nav-list">
+        <NavRow icon="coin" title="General store" sub="Seeds, bread, rods and starter tools" onClick={() => app.go({ name: 'shop' })} />
+      </nav>
       {ORDER.map((k) => {
         const group = ids.filter((id) => ITEMS[id].kind === k).sort((a, b) => ITEMS[a].value - ITEMS[b].value);
         if (!group.length) return null;
         return (
-          <div key={k} className="col">
-            <h3>{KIND_LABEL[k]}</h3>
+          <section key={k} className="col">
+            <SectionTitle note={String(group.reduce((a, id) => a + world.bank[id], 0))}>{KIND_LABEL[k]}</SectionTitle>
             <div className="bank-grid">
               {group.map((id) => (
-                <button key={id} className={`bank-slot ${sel === id ? 'on' : ''}`} onClick={() => setSel(id)} aria-label={ITEMS[id].name}>
-                  <ItemIcon id={id} size={32} />
+                <button key={id} className={`bank-slot rarity-${ITEMS[id].kind} ${sel === id ? 'on' : ''}`} onClick={() => { sfx.tap(); setSel(id); }} aria-label={`${ITEMS[id].name}, ${world.bank[id]}`}>
+                  <ItemIcon id={id} size={34} />
                   <span className="qty">{fmtQty(world.bank[id])}</span>
                 </button>
               ))}
             </div>
-          </div>
+          </section>
         );
       })}
-      {!ids.length && <div className="serif muted center">Your bank is empty.</div>}
+      {!ids.length && <EmptyState icon="chest" title="Your bank is empty">Train a gathering skill and your haul lands here.</EmptyState>}
       {sel && world.bank[sel] ? <ItemSheet id={sel} onClose={() => setSel(null)} /> : null}
     </div>
   );
@@ -112,19 +110,25 @@ function ItemSheet({ id, onClose }: { id: string; onClose: () => void }) {
 
   return (
     <div className="modal-back" onClick={onClose}>
-      <div className="modal stone" onClick={(ev) => ev.stopPropagation()}>
-        <div className="row">
-          <ItemIcon id={id} size={48} />
+      <div className="modal stone gilded" role="dialog" aria-label={d.name} onClick={(ev) => ev.stopPropagation()}>
+        <div className="sheet-handle" />
+        <div className="row" style={{ gap: 12 }}>
+          <ItemIcon id={id} size={48} className="icon-tile" />
           <div className="grow">
             <h2>{d.name}</h2>
-            <div className="small muted">You have {n} · worth {d.value} gold each</div>
+            <div className="small muted num" style={{ marginTop: 4 }}>You have {n.toLocaleString()} · {d.value ? `${d.value} gold each` : 'cannot be sold'}</div>
           </div>
         </div>
-        {d.desc && <div className="serif" style={{ fontSize: 15 }}>{d.desc}</div>}
-        {d.heal ? <div className="small green">Heals {d.heal} HP</div> : null}
-        {e?.dmg ? <div className="small">+{Math.round(e.dmg * 100)}% damage · needs Attack {e.level}</div> : null}
-        {e?.dr ? <div className="small">{Math.round(e.dr * 100)}% damage reduction · needs Defence {e.level}</div> : null}
-        {d.tool ? <div className="small">+{Math.round(d.tool.bonus * 100)}% double yield · works from {d.tool.skill} {d.tool.level}. Tools work straight from the bank.</div> : null}
+        {d.desc && <div className="desc">{d.desc}</div>}
+        <div className="row wrap">
+          {d.heal ? <span className="pill green">Heals {d.heal} HP</span> : null}
+          {e?.dmg ? <span className="pill">+{Math.round(e.dmg * 100)}% damage</span> : null}
+          {e?.dr ? <span className="pill">{Math.round(e.dr * 100)}% armour</span> : null}
+          {e?.skill ? <span className={`pill ${canEquip(id, lv) ? '' : 'red'}`}>Needs {e.skill} {e.level}</span> : null}
+          {d.tool ? <span className="pill">+{Math.round(d.tool.bonus * 100)}% double yield</span> : null}
+          {d.tool ? <span className="pill">{d.tool.skill} {d.tool.level}+</span> : null}
+        </div>
+        {d.tool ? <div className="desc small">Tools work straight from the bank: your best usable one is always used.</div> : null}
         <div className="grid2">
           {e && <button className="btn green" disabled={!canEquip(id, lv)} onClick={doEquip}>Equip</button>}
           {d.heal ? <button className="btn" disabled={world.food === id} onClick={setFood}>{world.food === id ? 'Your food' : 'Set as food'}</button> : null}
@@ -133,7 +137,7 @@ function ItemSheet({ id, onClose }: { id: string; onClose: () => void }) {
           {d.value > 0 && <button className="btn stone" onClick={() => sell(1)}>Sell 1 ({d.value}g)</button>}
           {d.value > 0 && n > 1 && <button className="btn stone" onClick={() => sell(n)}>Sell all ({(n * d.value).toLocaleString()}g)</button>}
         </div>
-        <button className="btn block stone small" onClick={onClose}>Close</button>
+        <button className="btn block plain small" onClick={onClose}>Close</button>
       </div>
     </div>
   );
@@ -154,9 +158,9 @@ export function Shop() {
   };
   return (
     <>
-      <TopBar title="General store" right={<span className="pill"><Sprite name="coin" size={16} /> {profile.gold.toLocaleString()}</span>} />
+      <TopBar title="General store" right={<GoldPill amount={profile.gold} />} />
       <div className="screen">
-        <div className="serif muted" style={{ fontSize: 15 }}>“Seeds, bread and tools. Better gear you’ll have to make yourself.”</div>
+        <div className="desc" style={{ fontStyle: 'italic' }}>“Seeds, bread and tools. Better gear you’ll have to make yourself.”</div>
         <div className="list">
           {SHOP.map((s) => {
             const locked = s.level && lv[s.level.skill] < s.level.level;

@@ -82,10 +82,65 @@ export function ItemIcon({ id, size = 32, className = '' }: { id: string; size?:
   return <img className={`px ${className}`} src={spriteUrl(d.icon, d.tint)} width={size} height={size} alt={d.name} title={d.name} draggable={false} />;
 }
 
-export function XpBar({ into, span }: { into: number; span: number }) {
+export function XpBar({ into, span, tone }: { into: number; span: number; tone?: 'gold' | 'green' }) {
   return (
-    <div className="xpbar">
-      <i style={{ width: `${Math.min(100, (into / span) * 100)}%` }} />
+    <div className={`xpbar ${tone ?? ''}`} role="progressbar" aria-valuemin={0} aria-valuemax={span} aria-valuenow={Math.min(span, into)}>
+      <i style={{ width: `${span ? Math.min(100, (into / span) * 100) : 0}%` }} />
     </div>
+  );
+}
+
+/** Title row at the top of each tab. */
+export function PageHeader({ title, sub, right }: { title: string; sub?: ReactNode; right?: ReactNode }) {
+  return (
+    <header className="page-header">
+      <div className="titles">
+        <h1>{title}</h1>
+        {sub && <div className="sub small muted">{sub}</div>}
+      </div>
+      {right}
+    </header>
+  );
+}
+
+export function SectionTitle({ children, note }: { children: ReactNode; note?: ReactNode }) {
+  return (
+    <div className="section-title">
+      {children}
+      {note && <span className="muted">{note}</span>}
+    </div>
+  );
+}
+
+export function EmptyState({ icon, title, children }: { icon: string; title: string; children?: ReactNode }) {
+  return (
+    <div className="empty">
+      <Sprite name={icon} size={40} />
+      <h2>{title}</h2>
+      {children && <div className="desc">{children}</div>}
+    </div>
+  );
+}
+
+/** A tappable row in a grouped list, with a chevron. */
+export function NavRow({ icon, title, sub, onClick, right }: { icon: string; title: string; sub?: ReactNode; onClick: () => void; right?: ReactNode }) {
+  return (
+    <button className="nav-row" onClick={() => { sfx.tap(); onClick(); }}>
+      <Sprite name={icon} size={22} />
+      <div className="grow">
+        <span>{title}</span>
+        {sub && <span className="small muted">{sub}</span>}
+      </div>
+      {right}
+      <span className="chev" aria-hidden>▸</span>
+    </button>
+  );
+}
+
+export function GoldPill({ amount }: { amount: number }) {
+  return (
+    <span className="pill gold num" aria-label={`${amount} gold`}>
+      <Sprite name="coin" size={16} /> {amount.toLocaleString()}
+    </span>
   );
 }

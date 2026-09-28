@@ -4,7 +4,7 @@ import { ITEMS, LOG_ORDER, METALS } from '../../game/items';
 import { combatLevel, SKILL_BY_ID, SKILLS, totalLevel, XP_TABLE, xpProgress, type SkillGroup, type SkillId } from '../../game/skills';
 import { areaLocked, bestTool, FERTILISER, harvest, leaveCombat, maxSmeltable, plant, plotReady, pushLog, startSmelt, syncPlots, TOOL_FOR, toolNeeded, type Active, type CombatStyle } from '../../game/world';
 import { CardCheck } from '../CardCheck';
-import { ItemIcon, Sprite, TopBar, XpBar } from '../common';
+import { ItemIcon, PageHeader, SectionTitle, Sprite, TopBar, XpBar } from '../common';
 import { useApp } from '../context';
 import { sfx } from '../sfx';
 import { activityInfo } from './Scene';
@@ -35,31 +35,41 @@ export function SkillsTab() {
   const { profile, lv, world, go } = useApp();
   const activeSkill = world.active ? activityInfo(world.active).skill : null;
   const combatActive = world.active?.kind === 'combat';
+  const readyPlots = world.plots.filter((p) => p && Date.now() - p.planted >= p.growMs).length;
   return (
     <div className="screen">
-      <div className="row">
-        <h1 className="grow">Skills</h1>
-        <span className="pill">Total {totalLevel(lv)}</span>
-        <span className="pill">Combat {combatLevel(lv)}</span>
-      </div>
+      <PageHeader
+        title="Skills"
+        sub={world.active ? `Training: ${activityInfo(world.active).name}` : 'Pick an activity to train'}
+        right={
+          <div className="col" style={{ gap: 4, alignItems: 'flex-end' }}>
+            <span className="pill gold num">Total {totalLevel(lv)}</span>
+            <span className="pill num">Combat {combatLevel(lv)}</span>
+          </div>
+        }
+      />
       {GROUPS.map((g) => (
-        <div key={g} className="col">
-          <h3>{g}</h3>
-          {SKILLS.filter((s) => s.group === g).map((s) => {
-            const pr = xpProgress(profile.xp[s.id]);
-            const on = activeSkill === s.id || (combatActive && s.group === 'Combat' && s.id === 'attack');
-            return (
-              <button key={s.id} className={`skill-row ${on ? 'on' : ''}`} onClick={() => go({ name: 'skill', skill: s.id })}>
-                <Sprite name={s.icon} size={24} />
-                <div style={{ textAlign: 'left' }}>
-                  <div>{s.name} {on && <span className="small green">· training</span>}</div>
+        <section key={g} className="col">
+          <SectionTitle>{g}</SectionTitle>
+          <div className="skill-grid">
+            {SKILLS.filter((s) => s.group === g).map((s) => {
+              const pr = xpProgress(profile.xp[s.id]);
+              const on = activeSkill === s.id || (combatActive && s.group === 'Combat' && s.id === world.style);
+              const note = s.id === 'farming' && readyPlots ? `${readyPlots} ready` : s.id === 'smithing' && world.furnace ? 'smelting' : null;
+              return (
+                <button key={s.id} className={`skill-tile ${on ? 'on' : ''}`} onClick={() => { sfx.tap(); go({ name: 'skill', skill: s.id }); }} aria-label={`${s.name} level ${pr.level}`}>
+                  <Sprite name={s.icon} size={26} />
+                  <div className="skill-name">
+                    <span>{s.name}</span>
+                    {note && <span className="green tiny">{note}</span>}
+                  </div>
+                  <div className="skill-lvl">{pr.level}<small>/99</small></div>
                   <XpBar into={pr.into} span={pr.span} />
-                </div>
-                <div className="lvl-big">{pr.level}</div>
-              </button>
-            );
-          })}
-        </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
       ))}
     </div>
   );
@@ -72,17 +82,23 @@ export function SkillDetail({ skill }: { skill: SkillId }) {
   const pr = xpProgress(profile.xp[skill]);
   return (
     <>
-      <TopBar title={s.name} right={<span className="lvl-big">{pr.level}</span>} />
+      <TopBar title={s.name} right={<span className="pill small">{s.group}</span>} />
       <div className="screen">
-        <div className="stone col">
-          <div className="row">
-            <Sprite name={s.icon} size={32} />
+        <div className="stone gilded col">
+          <div className="row" style={{ gap: 12 }}>
+            <Sprite name={s.icon} size={40} className="icon-tile" />
             <div className="grow">
-              <div className="serif" style={{ fontSize: 15 }}>{s.desc}</div>
+              <div className="row" style={{ alignItems: 'baseline' }}>
+                <span className="lvl-big">Level {pr.level}</span>
+                <span className="small faint">/ 99</span>
+              </div>
               <XpBar into={pr.into} span={pr.span} />
-              <div className="small muted">{profile.xp[skill].toLocaleString()} xp{pr.level < 99 ? ` · ${(XP_TABLE[pr.level + 1] - profile.xp[skill]).toLocaleString()} to level ${pr.level + 1}` : ''}</div>
+              <div className="small muted num" style={{ marginTop: 4 }}>
+                {profile.xp[skill].toLocaleString()} xp{pr.level < 99 ? ` · ${(XP_TABLE[pr.level + 1] - profile.xp[skill]).toLocaleString()} to next` : ''}
+              </div>
             </div>
           </div>
+          <div className="desc small">{s.desc}</div>
         </div>
         {(skill === 'mining' || skill === 'woodcutting' || skill === 'fishing') && <GatherList skill={skill} />}
         {skill === 'cooking' && <CookList />}
@@ -95,7 +111,7 @@ export function SkillDetail({ skill }: { skill: SkillId }) {
         {skill === 'farming' && <FarmPanel />}
         {(skill === 'attack' || skill === 'strength' || skill === 'defence' || skill === 'hitpoints') && <CombatAreas />}
         {skill === 'scholarship' && (
-          <div className="leather serif" style={{ fontSize: 16 }}>
+          <div className="leather desc">
             Scholarship grows with every scheduled review, whatever you are training. Mature cards give more. Practice cards don’t count. Each level adds 1% to the gold you find.
           </div>
         )}
@@ -143,8 +159,8 @@ function GatherList({ skill }: { skill: 'mining' | 'woodcutting' | 'fishing' }) 
   const next = nodes.find(blocked);
   return (
     <>
-      <div className="small muted">
-        {tool ? `Using ${ITEMS[tool.id].name}: +${Math.round(tool.bonus * 100)}% double yield. Mature cards add more.` : 'You have no usable tool. Buy one in the general store.'}
+      <div className="desc small">
+        {tool ? `Using your ${ITEMS[tool.id].name.toLowerCase()}: +${Math.round(tool.bonus * 100)}% chance of a double yield. Mature cards add more.` : 'You have no usable tool. Buy one in the general store.'}
       </div>
       {next && (
         <NextGoal
@@ -234,7 +250,7 @@ function FurnacePanel() {
 
   return (
     <div className="stone col">
-      <h3><Sprite name="flame" size={16} /> Furnace <span className="small muted">(real time)</span></h3>
+      <div className="row"><Sprite name="flame" size={18} /><h2 className="grow">Furnace</h2><span className="pill small">Real time</span></div>
       {f ? (
         <>
           {(() => {
@@ -252,7 +268,7 @@ function FurnacePanel() {
               </div>
             );
           })()}
-          <div className="small muted">Bars go straight to your bank, even while you study something else.</div>
+          <div className="desc small">Bars go straight to your bank, even while you study something else.</div>
         </>
       ) : (
         <>
@@ -279,7 +295,7 @@ function FurnacePanel() {
           <button className="btn block" disabled={max < 1} onClick={() => setChecking(true)}>
             {max < 1 ? `Not enough ore or ${r.fuel ? `${ITEMS[LOG_ORDER[r.fuel]].name.toLowerCase()} (or better)` : 'logs'}` : 'Light furnace (card check)'}
           </button>
-          <div className="small muted">Answer one card to light it. The card’s maturity makes smelting faster.</div>
+          <div className="desc small">Answer one card to light it. The card’s maturity makes smelting faster.</div>
         </>
       )}
       {checking && <CardCheck title="light the furnace" onDone={light} onCancel={() => setChecking(false)} />}
@@ -292,10 +308,14 @@ function ForgeList() {
   const train = useTrain();
   return (
     <div className="col">
-      <h3><Sprite name="anvil" size={16} /> Anvil <span className="small muted">(one card per item)</span></h3>
+      <SectionTitle note="one card per item">Anvil</SectionTitle>
       {METALS.filter((m) => lv.smithing >= m.smith || m.tier <= 2).map((m) => (
         <div key={m.id} className="list">
-          <div className="small gold">{m.name} · {world.bank[`bar-${m.id}`] ?? 0} bars</div>
+          <div className="row small" style={{ marginTop: 4 }}>
+            <ItemIcon id={`bar-${m.id}`} size={18} />
+            <span className="gold">{m.name}</span>
+            <span className="muted num">· {world.bank[`bar-${m.id}`] ?? 0} bars</span>
+          </div>
           {FORGING.filter((f) => f.bar === `bar-${m.id}`).map((f) => {
             const locked = lv.smithing < f.level;
             const on = isActive(world.active, 'forge', f.id);
@@ -362,7 +382,7 @@ function FarmPanel() {
 
   return (
     <div className="col">
-      <div className="small muted">Your card’s maturity boosts the harvest, and so do bones from combat. More plots unlock at Farming 15, 35 and 55.</div>
+      <div className="desc small">Your card’s maturity boosts the harvest, and so do bones from combat. More plots unlock at Farming 15, 35 and 55.</div>
       <label className="toggle">
         <span>Fertiliser: bones +50%, big bones +100%</span>
         <select id="fertiliser" value={fert} onChange={(e) => setFert(e.target.value)} style={{ width: 150 }}>
@@ -430,7 +450,7 @@ function CombatAreas() {
           ))}
         </div>
       </div>
-      <h3>Areas <span className="small muted">(combat level {cl})</span></h3>
+      <SectionTitle note={`combat level ${cl}`}>Areas</SectionTitle>
       <div className="list">
         {AREAS.map((a) => {
           const reason = areaLocked(world, a, cl);

@@ -4,7 +4,7 @@ import type { CardRow } from '../../core/types';
 import { ITEMS } from '../../game/items';
 import { checkActive, performAction, pushLog } from '../../game/world';
 import { checkQueueCleared } from '../actions';
-import { Sprite } from '../common';
+import { EmptyState, Sprite, XpBar } from '../common';
 import { useApp } from '../context';
 import { ReviewPanel } from '../ReviewPanel';
 import { sfx } from '../sfx';
@@ -24,6 +24,7 @@ export function StudyTab() {
   const [busy, setBusy] = useState(false);
   const [pops, setPops] = useState<Pop[]>([]);
   const [actionKey, setActionKey] = useState(0);
+  const [done, setDone] = useState(0);
   const lastPractice = useRef<number | null>(null);
 
   const load = async () => {
@@ -67,14 +68,15 @@ export function StudyTab() {
   const active = world.active;
   if (!active) {
     return (
-      <div className="screen">
-        <div className="title-logo" style={{ fontSize: 26, marginTop: 12 }}>GRIMRECALL</div>
-        <div className="stone col center">
-          <h2>What will you train?</h2>
-          <div className="serif" style={{ fontSize: 16 }}>Pick an activity in Skills. Then every card you study mines, chops, fishes, cooks, forges or fights.</div>
-          <button className="btn big block" onClick={() => app.go({ name: 'skills' })}>Choose a skill</button>
+      <div className="screen" style={{ justifyContent: 'center' }}>
+        <div className="title-logo" style={{ fontSize: 26 }}>GRIMRECALL</div>
+        <div className="stone gilded col center">
+          <EmptyState icon="pickaxe" title="What will you train?">
+            Pick an activity in Skills. Then every card you study mines, chops, fishes, cooks, forges or fights.
+          </EmptyState>
+          <button className="btn big block primary" onClick={() => app.go({ name: 'skills' })}>Choose a skill</button>
         </div>
-        {queue && <div className="small muted center">{queue.length} cards due</div>}
+        {queue && <div className="small muted center num">{queue.length} cards due today</div>}
       </div>
     );
   }
@@ -106,7 +108,10 @@ export function StudyTab() {
       await app.gainXp(xp);
       // tier-up choices wait for combat: the card shows ASCEND in your hand there
       if (isPractice) await drawPractice();
-      else await load();
+      else {
+        setDone((d) => d + 1);
+        await load();
+      }
     } finally {
       setBusy(false);
     }
@@ -115,16 +120,26 @@ export function StudyTab() {
   return (
     <div className="screen study">
       <Scene active={active} pops={pops} status={blocked} actionKey={actionKey} />
+      {queue && !blocked && (
+        <div className="session num" aria-label={`${queue.length} cards left, ${done} done this session`}>
+          {isPractice && practice ? (
+            <span className="gold">Practice · half xp · schedule untouched</span>
+          ) : (
+            <>
+              <span>{queue.length} left</span>
+              <XpBar into={done} span={done + queue.length} tone="gold" />
+              <span>{done} done</span>
+            </>
+          )}
+        </div>
+      )}
       {blocked ? (
         <div className="stone col center">
-          <div className="serif" style={{ fontSize: 16 }}>{blocked}</div>
-          <button className="btn block" onClick={() => app.go({ name: 'skill', skill: info.skill })}>Open {info.skill}</button>
+          <div className="desc">{blocked}</div>
+          <button className="btn block primary" onClick={() => app.go({ name: 'skill', skill: info.skill })}>Open {info.skill}</button>
         </div>
       ) : card ? (
-        <>
-          {isPractice && <div className="small muted center">Practice: half xp, no scholarship, schedule untouched.</div>}
-          <ReviewPanel card={card} onGrade={grade} busy={busy} showIntervals={!isPractice} />
-        </>
+        <ReviewPanel card={card} onGrade={grade} busy={busy} showIntervals={!isPractice} />
       ) : queue ? (
         <DoneForNow nextLearn={nextLearn} onPractice={() => setPractice(true)} />
       ) : null}
@@ -135,10 +150,9 @@ export function StudyTab() {
 export function DoneForNow({ nextLearn, onPractice }: { nextLearn: number | null; onPractice: () => void }) {
   return (
     <div className="stone col center">
-      <h3>No cards due</h3>
-      <div className="serif" style={{ fontSize: 16 }}>
+      <EmptyState icon={nextLearn ? 'hourglass' : 'star'} title={nextLearn ? 'Cards still settling' : 'All caught up'}>
         {nextLearn ? `Learning cards return in ${formatInterval(nextLearn - Date.now())}.` : 'Your queue is clear for today.'} You can keep training with practice cards: half xp, and your schedule isn’t touched.
-      </div>
+      </EmptyState>
       <button className="btn block" onClick={onPractice}><Sprite name="hourglass" size={18} /> Practice</button>
     </div>
   );
