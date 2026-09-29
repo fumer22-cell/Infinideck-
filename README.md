@@ -15,7 +15,7 @@ The game **never** changes scheduling and **never** pulls cards early.
 - Studying only draws from `getDueQueue()`: learning cards whose step has elapsed, review cards due today (Anki-style day boundary, default 4am), and new cards up to the daily limit.
 - When nothing is due you can keep training with **practice** cards (Mature cards first). Practice is never recorded, gives half xp and no Scholarship.
 - Grades don't change what a skilling action yields, so there's no reason to grade dishonestly. The card's **maturity** is what pays: Young, Mature and Legendary cards give a 10%, 25% or 50% chance of a double yield, speed up the furnace and boost harvests.
-- Card effects, tiers and leech clearing live in separate game fields (`effect`, `tierSeen`, `leechBase`) and never touch FSRS state.
+- Leech clearing lives in a separate game field (`leechBase`) and never touches FSRS state. Combat reads a card's maturity but never changes it.
 
 ## Playing
 
@@ -31,7 +31,7 @@ The game **never** changes scheduling and **never** pulls cards early.
 | Gathering | Farming | Plant with a **card check**, then crops grow in real time. Harvest when ready. More plots at 15, 35 and 55. |
 | Artisan | Smithing | **Furnace**: start a batch with a card check; bars smelt in real time (1 log of fuel each). **Anvil**: one card forges one sword, helm, shield, platebody, pickaxe or hatchet. |
 | Artisan | Cooking | One card cooks one fish. Cooked food heals in combat. |
-| Combat | Attack, Strength, Defence, Hitpoints | Card combat in four areas, each with a boss after 10–12 kills. Your combat style decides which skill trains. |
+| Combat | Attack, Strength, Defence, Hitpoints | A deckbuilding fight in four areas, each with a boss after 10 kills. Your combat style decides which skill trains. |
 | Knowledge | Scholarship | Every scheduled review, in any skill. |
 
 All skills use the classic exponential XP table up to 99.
@@ -50,18 +50,28 @@ Levels alone don't open the next tier. You also need the right tool, fuel or key
 
 Each gathering skill page shows your **next goal** and every step it needs.
 
-Card tier-ups (choosing a card's new combat power) only happen in combat. Cards that matured while you trained other skills wait behind the **↑** button in combat.
-
 ### Combat
 
-Tap one of three cards in your hand, reveal, and grade. Easy = critical hit, Good = normal, Hard = weak, Again = miss plus a free enemy hit. Correct answers build a combo. Every card has an effect (Strike, Mend, Ward, Venom, Insight...) whose power grows with FSRS maturity, and you choose a new effect when a card reaches a new tier. Enemies show their next intent.
+Flashcards power the fight; **ability cards** are what you play. Each turn:
 
-Gear from the anvil boosts damage and cuts damage taken. Relics from bosses become rings and amulets. Food is eaten automatically below a third of your HP. Bosses drag your due **leech** cards (4+ lapses) into your hand, and beating one clears their leech status. Dying ends the trip, costs 10% of your gold and wakes you at half HP. Out of combat, HP regenerates in real time.
+1. **Answer** a flashcard for energy: Hard 1, Good 2, Easy 3, and a mature card (21+ day interval) adds 1. Again gives none. Unspent energy carries over, up to 6.
+2. **Play** ability cards from a hand of 4.
+3. **End turn**: the enemy does what its intent badge says, then you draw a new hand.
 
-### Progression
+Your deck is your loadout. Swords give Slash, Lunge and Parry. Daggers give cheap multi-hits and poison, and battleaxes give Cleave (ignores block) and Sunder. Armour adds Shield Bash (stun), Steady and Bulwark. Each trinket adds one unique card (Starfall, Soulrend, Phoenix Rite...), and packed food adds Eat cards that use up the food. Attack, Strength, Defence and Hitpoints levels teach techniques like Focus, War Cry and Overpower. In the Gear tab you can switch cards out, so a thinner deck draws your best cards more often. Better metal raises **Power**, which is the damage of your attack cards, and armour and Defence raise **Guard**, which is the block of your block cards. Masterwork gear gives upgraded (+) cards.
+
+Enemies telegraph their next move: attack, a flurry of hits, block, empower, venom, or a **wind-up** before a heavy blow. Stun a wind-up and the blow never lands. Traits give each enemy its own puzzle:
+- Armoured enemies gain block every turn.
+- Enraged enemies grow stronger each time you answer Again.
+- Regenerating enemies heal every turn.
+- Venomous enemies poison you.
+
+Bosses switch tactics below half health.
+
+Bosses drag your due **leech** cards (4+ lapses) up first, and beating the boss clears their leech status. Dying ends the trip, costs 10% of your gold and wakes you at half HP. Out of combat, HP regenerates in real time.
 
 - **Bank** and **general store**: sell anything; buy seeds, bread, rods and starter tools.
-- **Gear**: six equipment slots, a food slot and your combat style.
+- **Gear**: six equipment slots, packed food, your combat style and the combat deck builder.
 - **Journey**: total and combat level, the daily **streak chest** for clearing your queue, and milestone rewards at 50 / 100 / 500 / 1000 mature cards.
 
 ## Rewards and penalties
@@ -108,7 +118,7 @@ Deploy `dist/` to any static host. It must be served over HTTPS for install and 
 
 ```
 src/core/     db (Dexie), srs (FSRS wrapper + due queue), profile, settings, backup
-src/game/     skills, items, activities (rocks, trees, recipes, seeds, areas), world (bank, gear, furnace, plots, trips), combat (pure), effects, relics
+src/game/     skills, items, activities (rocks, trees, recipes, seeds, areas), world (bank, gear, furnace, plots, trips), abilities (cards, loadout decks), combat (pure turn engine), enemies (intents, traits), relics
 src/import/   apkg, template renderer, protobuf reader, csv, html sanitizer
 src/art/      original pixel sprites (character grids) + procedural dungeon backdrops
 src/ui/       tabs (Study, Skills, Bank, Gear, Journey), deck screens, combat view, 8-bit WebAudio sfx

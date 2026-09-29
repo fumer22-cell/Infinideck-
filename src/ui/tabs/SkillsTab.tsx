@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { TRAIT_INFO } from '../../game/enemies';
 import { AREAS, COOKING, FORGING, GATHER, SEEDS, SMELTING, plotCount } from '../../game/activities';
 import { ITEMS, LOG_ORDER, METALS } from '../../game/items';
 import { combatLevel, SKILL_BY_ID, SKILLS, totalLevel, XP_TABLE, xpProgress, type SkillGroup, type SkillId } from '../../game/skills';
@@ -465,14 +466,22 @@ function CombatAreas() {
   const setStyle = (style: CombatStyle) => void app.updateWorld((w) => void (w.style = style));
   return (
     <>
-      <div className="stone col">
-        <h3>Combat style</h3>
-        <div className="small muted">Damage you deal trains this skill (plus Hitpoints). Blocked damage trains Defence.</div>
-        <div className="grid3">
-          {(['attack', 'strength', 'defence'] as CombatStyle[]).map((st) => (
-            <button key={st} className={`btn small ${world.style === st ? 'green' : 'stone'}`} onClick={() => setStyle(st)}>{SKILL_BY_ID[st].name}</button>
-          ))}
+      <div className="stone col how-combat">
+        <h3>How combat works</h3>
+        <ol className="small">
+          <li><b>Answer</b> a flashcard for energy: Hard 1, Good 2, Easy 3. A mature card adds 1. Again gives none.</li>
+          <li><b>Play</b> ability cards from your hand. Your weapon, armour, trinkets, food and techniques make up your deck.</li>
+          <li><b>End turn.</b> The enemy does what its badge says. Block the big hits, stun wind-ups, and read its traits.</li>
+        </ol>
+        <div className="grid2">
+          <button className="btn small stone" onClick={() => app.go({ name: 'gear' })}>Edit deck in Gear</button>
+          <div className="grid3" style={{ gap: 4 }}>
+            {(['attack', 'strength', 'defence'] as CombatStyle[]).map((st) => (
+              <button key={st} className={`btn small ${world.style === st ? 'green' : 'stone'}`} onClick={() => setStyle(st)} aria-label={`Train ${SKILL_BY_ID[st].name}`}><Sprite name={SKILL_BY_ID[st].icon} size={14} /></button>
+            ))}
+          </div>
         </div>
+        <div className="small muted">Damage trains {SKILL_BY_ID[world.style].name} and Hitpoints. Blocking trains Defence.</div>
       </div>
       <SectionTitle note={`combat level ${cl}`}>Areas</SectionTitle>
       <div className="list">
@@ -486,6 +495,7 @@ function CombatAreas() {
               <div className="name">
                 <div>{a.name}</div>
                 <div className="small muted">{locked ? `${reason}${a.key && !world.bank[a.key] ? ` (dropped by ${AREAS[AREAS.indexOf(a) - 1].boss.name.split(',')[0]})` : ''}` : `${a.flavor} Boss after ${a.bossAfter} kills (${world.bossProgress[a.id] ?? 0}).`}</div>
+                <div className="trait-line">{[...new Set([...a.monsters, a.boss].flatMap((m) => m.traits ?? []))].map((t) => <span key={t} className="pill trait small">{TRAIT_INFO[t].name}</span>)}</div>
               </div>
               <button className={`btn small ${on ? 'green' : 'red'}`} disabled={locked} onClick={() => train({ kind: 'combat', id: a.id })}>{on ? 'Fighting' : 'Fight'}</button>
             </div>

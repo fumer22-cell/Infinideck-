@@ -5,16 +5,15 @@
  * card scheduling; the caller reports grades to srs.reviewCard first.
  */
 import { kvGet, kvSet } from '../core/db';
-import type { EffectId, Tier } from '../core/types';
+import type { Tier } from '../core/types';
 import { AREA_BY_ID, COOKING, FORGING, GATHER, SEEDS, SMELTING, plotCount, smeltBatchCap, type AreaDef, type Drop, type MonsterDef } from './activities';
-import { ADVENTURER } from './classes';
-import { playCard, startCombat, type CombatEvent } from './combat';
+import { activeDeck, combatStats, type CombatStats, type Loadout } from './abilities';
+import { answerTurn, endTurn, newFight, playFromHand, type CombatEvent, type Fight, type StepResult } from './combat';
 import { intentFor, type EnemyState } from './enemies';
-import { ITEMS, LEGENDARIES, LOG_ORDER, masterworkOf, METALS, perfectOf, PETS, SLOTS, type Slot, type ToolKind } from './items';
+import { ITEMS, LEGENDARIES, LOG_ORDER, masterworkOf, METALS, perfectOf, PETS, type Slot, type ToolKind } from './items';
 import { addMastery, ensureRewards, MASTERY_SAFE, masteryDouble, masteryLevel, recordFinds, registerAnswer, type AnswerCtx, type AnswerResult } from './rewards';
-import type { RelicId } from './relics';
 import { rand, randInt, type Rng } from './rng';
-import { attackMult, defenceReduction, goldMult, maxHpFor, strengthMult, type Levels, type SkillId } from './skills';
+import { goldMult, maxHpFor, type Levels, type SkillId } from './skills';
 
 export type Active =
   | { kind: 'gather'; id: string }
@@ -27,19 +26,14 @@ export type CombatStyle = 'attack' | 'strength' | 'defence';
 export interface Furnace { recipe: string; total: number; done: number; start: number; msEach: number }
 export interface Plot { seed: string; planted: number; growMs: number; bonus: number; /** extra yield from fertiliser (0.5 = +50%) */ fert?: number }
 
-export interface CombatSession {
+/** A combat trip: the current fight (see combat.ts) plus progress through the area. */
+export interface CombatSession extends Fight {
   area: string;
-  enemy: EnemyState;
   kills: number;
-  hand: number[];
-  combo: number;
-  cardsPlayed: number;
-  deathWardUsed: boolean;
-  block: number;
-  /** leech cards faced this trip (cleared when a boss falls) */
+  /** leech cards answered against this trip's boss (cleared when it falls) */
   leeches: number[];
-  /** extra cards to draw from Insight effects */
-  bonusDraw?: number;
+  /** xp multiplier earned by this turn's answer (streaks, rested, ...) */
+  mult: number;
 }
 
 export interface LogLine { text: string; tone?: 'dmg' | 'heal' | 'info' | 'bad' | 'gold' | 'xp' | 'loot' }
@@ -78,6 +72,8 @@ export interface World {
   mastery?: Record<string, number>;
   /** first time each collectible was found */
   collection?: Record<string, number>;
+  /** combat cards you switched off in the deck builder (PoolCard keys) */
+  deckOff?: string[];
 }
 
 export function newWorld(maxHp: number, now = Date.now()): World {
@@ -101,7 +97,14 @@ export function newWorld(maxHp: number, now = Date.now()): World {
 
 export async function loadWorld(maxHp: number): Promise<World> {
   const w = await kvGet<World | null>('world', null);
-  return w ?? newWorld(maxHp);
+  if (!w) return newWorld(maxHp);
+  return migrateWorld(w);
+}
+
+/** Older saves held a card-effect combat session; drop it (the trip restarts on entry). */
+export function migrateWorld(w: World): World {
+  if (w.combat && !('phase' in w.combat)) w.combat = null;
+  return w;
 }
 export async function saveWorld(w: World): Promise<void> {
   await kvSet('world', w);
@@ -183,26 +186,11 @@ export function unequip(w: World, slot: Slot) {
   delete w.equip[slot];
 }
 
-export interface Bonuses { dmgMult: number; reduction: number; relics: RelicId[]; weaponDmg: number; armourDr: number }
-export function bonuses(w: World, lv: Levels): Bonuses {
-  let weaponDmg = 0;
-  let armourDr = 0;
-  const relics: RelicId[] = [];
-  for (const slot of SLOTS) {
-    const id = w.equip[slot];
-    const e = id ? ITEMS[id]?.equip : undefined;
-    if (!e) continue;
-    weaponDmg += e.dmg ?? 0;
-    armourDr += e.dr ?? 0;
-    if (e.relic) relics.push(e.relic);
-  }
-  return {
-    dmgMult: attackMult(lv.attack) * strengthMult(lv.strength) * (1 + weaponDmg),
-    reduction: Math.min(0.75, defenceReduction(lv.defence) + armourDr),
-    relics,
-    weaponDmg,
-    armourDr,
-  };
+export function loadout(w: World): Loadout {
+  return { equip: w.equip, food: w.food, bank: w.bank };
+}
+export function statsFor(w: World, lv: Levels, maxHp: number): CombatStats {
+  return combatStats(loadout(w), lv, maxHp);
 }
 
 // ---------- knowledge bonus ----------
@@ -500,15 +488,26 @@ export function eat(w: World, maxHp: number): number {
 }
 
 // ---------- combat trips ----------
+/** Enemies are a little tougher than their listed HP now that you play several cards a turn. */
+export const HP_SCALE = 1.25;
+
 export function spawn(def: MonsterDef): EnemyState {
-  const e: EnemyState = { id: def.id, name: def.name, sprite: def.sprite, hp: def.hp, maxHp: def.hp, block: 0, atk: def.atk, poison: 0, patternIdx: 0, pattern: def.pattern, intent: { kind: 'attack', value: 0 }, boss: !!def.boss };
+  const hp = Math.round(def.hp * HP_SCALE);
+  const e: EnemyState = {
+    id: def.id, name: def.name, sprite: def.sprite, hp, maxHp: hp, block: 0, atk: def.atk, str: 0, poison: 0, weak: 0, vuln: 0, stunned: false,
+    patternIdx: 0, pattern: [...def.pattern], phase2: def.phase2 ? [...def.phase2] : undefined, traits: def.traits ?? [], intent: { kind: 'attack', value: 0 }, boss: !!def.boss,
+  };
   e.intent = intentFor(e);
   return e;
 }
 
-export function startTrip(w: World, area: AreaDef, rng: Rng = rand): CombatSession {
+function fightFor(w: World, lv: Levels, def: MonsterDef, rng: Rng): Fight {
+  return newFight(activeDeck(loadout(w), lv, w.deckOff), spawn(def), rng);
+}
+
+export function startTrip(w: World, area: AreaDef, lv: Levels, rng: Rng = rand): CombatSession {
   const def = area.monsters[Math.floor(rng() * area.monsters.length)];
-  w.combat = { area: area.id, enemy: spawn(def), kills: 0, hand: [], combo: 0, cardsPlayed: 0, deathWardUsed: false, block: 0, leeches: [] };
+  w.combat = { ...fightFor(w, lv, def, rng), area: area.id, kills: 0, leeches: [], mult: 1 };
   return w.combat;
 }
 
@@ -524,14 +523,12 @@ export function bossReady(w: World, area: AreaDef) {
   return (w.bossProgress[area.id] ?? 0) >= area.bossAfter;
 }
 
-export function nextEnemy(w: World, rng: Rng = rand, boss = false) {
+/** A fresh fight in the same area: a new enemy, and your deck reshuffled. HP carries over. */
+export function nextEnemy(w: World, lv: Levels, rng: Rng = rand, boss = false) {
   const c = w.combat!;
   const area = AREA_BY_ID[c.area];
   const def = boss ? area.boss : area.monsters[Math.floor(rng() * area.monsters.length)];
-  c.enemy = spawn(def);
-  c.combo = w.equip && Object.values(w.equip).includes('relic-comboring') ? 2 : 0;
-  c.cardsPlayed = 0;
-  c.block = 0;
+  Object.assign(c, fightFor(w, lv, def, rng), { mult: 1, goldBonus: false });
 }
 
 export function rollDrops(drops: Drop[], rng: Rng = rand): Items {
@@ -553,78 +550,90 @@ export interface CombatResult {
   firsts?: string[];
 }
 
-/** Play one graded card against the current enemy. */
-export function combatPlay(
+function resultOf(w: World, step: StepResult, name: string, boss: boolean): CombatResult {
+  const m = w.combat?.mult ?? 1;
+  const xp: Partial<Record<SkillId, number>> = {};
+  if (step.dealt) {
+    xp[w.style] = step.dealt * 3 * m;
+    xp.hitpoints = step.dealt * 1.33 * m;
+  }
+  if (step.absorbed) xp.defence = (xp.defence ?? 0) + step.absorbed * 2 * m;
+  return { events: step.events, xp, killed: step.killed, died: step.died, loot: {}, gold: 0, boss, enemyName: name };
+}
+
+function onKill(w: World, lv: Levels, out: CombatResult, rng: Rng, now: number) {
+  const c = w.combat!;
+  const area = AREA_BY_ID[c.area];
+  const def = c.enemy.boss ? area.boss : area.monsters.find((m) => m.id === c.enemy.id)!;
+  // keys are only needed once
+  out.loot = rollDrops(def.drops.filter((d) => !(d.item.startsWith('key-') && w.bank[d.item])), rng);
+  if (rng() < (1 / 800) * (1 + (w.chain ?? 0) * 0.01)) out.loot['pet-wraith'] = 1;
+  out.firsts = recordFinds(w, out.loot, now);
+  out.gold = Math.round(randInt(def.gold[0], def.gold[1], rng) * goldMult(lv.scholarship) * (c.goldBonus ? 2 : 1));
+  addItems(w, out.loot);
+  c.kills++;
+  w.stats.kills++;
+  if (c.enemy.boss) {
+    w.stats.bossKills++;
+    w.bossProgress[area.id] = 0;
+  } else w.bossProgress[area.id] = (w.bossProgress[area.id] ?? 0) + 1;
+}
+
+function onDeath(w: World, maxHp: number) {
+  w.combat = null;
+  w.active = null;
+  w.hp = Math.ceil(maxHp / 2);
+  w.hpAt = Date.now();
+  w.stats.deaths++;
+}
+
+/** Step 1 of a turn: answer a flashcard. Its grade becomes energy; a mature card adds 1. */
+export function combatAnswer(
   w: World,
-  lv: Levels,
-  maxHp: number,
-  card: { effect: EffectId; tier: Tier; wasNew: boolean },
+  card: { id?: number; tier: Tier },
   grade: 1 | 2 | 3 | 4,
-  fast: boolean,
-  rng: Rng = rand,
-  ctx?: Omit<AnswerCtx, 'grade' | 'tier'>,
+  ctx: Omit<AnswerCtx, 'grade' | 'tier'> = {},
   now = Date.now(),
 ): CombatResult {
   const c = w.combat!;
   const answer = registerAnswer(w, { ...ctx, grade, tier: card.tier }, `combat-${c.area}`, now);
-  const b = bonuses(w, lv);
-  const state = startCombat({ hp: w.hp, maxHp, block: c.block }, c.enemy, [], 0, c.deathWardUsed);
-  state.combo = c.combo;
-  state.cardsPlayed = c.cardsPlayed;
-  const res = playCard(state, { effect: card.effect, tier: card.tier, grade, wasNew: card.wasNew, cls: ADVENTURER, relics: b.relics, dmgMult: b.dmgMult, reduction: b.reduction, fast });
-  w.hp = res.state.player.hp;
-  c.block = res.state.player.block;
-  c.enemy = res.state.enemy;
-  c.combo = res.state.combo;
-  c.cardsPlayed = res.state.cardsPlayed;
-  c.deathWardUsed = res.state.deathWardUsed;
-  // right answers scale combat xp by the same streak and bonuses as other skills
-  const m = answer.correct ? answer.mult : 1;
-  const xp: Partial<Record<SkillId, number>> = { hitpoints: res.xp.hitpoints * m };
-  xp[w.style] = (xp[w.style] ?? 0) + res.xp.attack * m;
-  xp.defence = (xp.defence ?? 0) + res.xp.defence * m;
-
-  const died = res.events.some((e) => e.t === 'playerDied');
-  const killed = !died && res.events.some((e) => e.t === 'enemyDied');
-  const out: CombatResult = { events: res.events, xp, killed, died, loot: {}, gold: 0, boss: c.enemy.boss, enemyName: c.enemy.name, answer };
+  c.mult = answer.correct ? answer.mult : 1;
+  if (c.enemy.boss && ctx.leech && card.id != null && !c.leeches.includes(card.id)) c.leeches.push(card.id);
+  const step = answerTurn(c, grade, card.tier);
   w.stats.actions++;
-  if (killed) {
-    const area = AREA_BY_ID[c.area];
-    const def = c.enemy.boss ? area.boss : area.monsters.find((m) => m.id === c.enemy.id)!;
-    // keys are only needed once
-    out.loot = rollDrops(def.drops.filter((d) => !(d.item.startsWith('key-') && w.bank[d.item])), rng);
-    if (rng() < (1 / 800) * (1 + (w.chain ?? 0) * 0.01)) out.loot['pet-wraith'] = 1;
-    out.firsts = recordFinds(w, out.loot, now);
-    const goldMul = goldMult(lv.scholarship) * (b.relics.includes('goldtooth') ? 1.25 : 1);
-    out.gold = Math.round(randInt(def.gold[0], def.gold[1], rng) * goldMul);
-    addItems(w, out.loot);
-    c.kills++;
-    w.stats.kills++;
-    if (c.enemy.boss) {
-      w.stats.bossKills++;
-      w.bossProgress[area.id] = 0;
-    } else w.bossProgress[area.id] = (w.bossProgress[area.id] ?? 0) + 1;
-    if (b.relics.includes('bloodvial')) w.hp = Math.min(maxHp, w.hp + 3);
+  return { ...resultOf(w, step, c.enemy.name, c.enemy.boss), answer };
+}
+
+/** Step 2: play an ability card from your hand. Returns null if you can't afford it. */
+export function combatCard(w: World, lv: Levels, maxHp: number, uid: number, rng: Rng = rand, now = Date.now()): CombatResult | null {
+  const c = w.combat!;
+  const card = c.hand.find((x) => x.uid === uid);
+  if (!card) return null;
+  let foodHeal = 0;
+  if (card.id === 'eat') {
+    if (!card.food || !w.bank[card.food]) return null;
+    foodHeal = ITEMS[card.food].heal ?? 0;
   }
-  if (died) {
-    w.combat = null;
-    w.active = null;
-    w.hp = Math.ceil(maxHp / 2);
-    w.hpAt = Date.now();
-    w.stats.deaths++;
-  }
+  const hero = { hp: w.hp, maxHp };
+  const step = playFromHand(c, hero, uid, statsFor(w, lv, maxHp), { foodHeal }, rng);
+  if (!step) return null;
+  if (card.id === 'eat') removeItems(w, { [card.food!]: 1 });
+  w.hp = hero.hp;
+  const out = resultOf(w, step, c.enemy.name, c.enemy.boss);
+  if (out.killed) onKill(w, lv, out, rng, now);
   return out;
 }
 
-/** Auto-eat when HP falls below a third. Returns HP healed. */
-export function autoEat(w: World, maxHp: number): number {
-  let healed = 0;
-  while (w.hp < maxHp / 3) {
-    const h = eat(w, maxHp);
-    if (!h) break;
-    healed += h;
-  }
-  return healed;
+/** Step 3: end your turn. The enemy acts, then you draw a new hand. */
+export function combatEndTurn(w: World, lv: Levels, maxHp: number, rng: Rng = rand, now = Date.now()): CombatResult {
+  const c = w.combat!;
+  const hero = { hp: w.hp, maxHp };
+  const step = endTurn(c, hero, statsFor(w, lv, maxHp), rng);
+  w.hp = Math.max(0, hero.hp);
+  const out = resultOf(w, step, c.enemy.name, c.enemy.boss);
+  if (out.killed) onKill(w, lv, out, rng, now);
+  if (out.died) onDeath(w, maxHp);
+  return out;
 }
 
 export function leaveCombat(w: World) {

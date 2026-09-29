@@ -1,11 +1,7 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { AREA_BY_ID, FORGING, SEEDS, SMELTING } from '../src/game/activities';
-import { ADVENTURER } from '../src/game/classes';
-import { comboMultiplier, playCard, startCombat, type PlayInput } from '../src/game/combat';
-import { tierUpChoices } from '../src/game/effects';
-import { intentFor, type EnemyState } from '../src/game/enemies';
-import { ITEMS } from '../src/game/items';
+import { ABILITIES } from '../src/game/abilities';
 import { EMPTY_XP, levelForXp, levels, XP_TABLE } from '../src/game/skills';
 import * as W from '../src/game/world';
 import { metaRefund } from '../src/core/profile';
@@ -14,57 +10,14 @@ const seq = (...xs: number[]) => {
   let i = 0;
   return () => xs[i++ % xs.length];
 };
-const lvAt = (over: Partial<Record<string, number>> = {}) => ({ ...levels(EMPTY_XP), ...over }) as ReturnType<typeof levels>;
-
-function enemy(over: Partial<EnemyState> = {}): EnemyState {
-  const e: EnemyState = { id: 'rat', name: 'Rat', sprite: 'rat', hp: 50, maxHp: 50, block: 0, atk: 4, poison: 0, patternIdx: 0, pattern: ['attack'], intent: { kind: 'attack', value: 4 }, boss: false, ...over };
-  e.intent = intentFor(e);
-  return e;
+/** Answer Good, then finish the enemy with an attack card. */
+function strikeDown(w: W.World) {
+  W.combatAnswer(w, { tier: 1 }, 3);
+  w.combat!.enemy.hp = 1;
+  const atk = w.combat!.hand.find((c) => ABILITIES[c.id].kind === 'attack')!;
+  return W.combatCard(w, lvAt(), 40, atk.uid, () => 0)!;
 }
-const base: PlayInput = { effect: 'attack', tier: 1, grade: 3, wasNew: false, cls: ADVENTURER, relics: [], dmgMult: 1, reduction: 0, fast: false };
-
-describe('combat rules', () => {
-  it('grades scale power: Easy crits, Hard is weak, Again misses and gives a free hit', () => {
-    const s = startCombat({ hp: 40, maxHp: 40, block: 0 }, enemy(), [], 0, false);
-    const dmg = (g: 1 | 2 | 3 | 4) => 50 - playCard(s, { ...base, grade: g }).state.enemy.hp;
-    expect(dmg(3)).toBe(5);
-    expect(dmg(2)).toBeLessThan(dmg(3));
-    expect(dmg(4)).toBeGreaterThan(dmg(3));
-    const miss = playCard(s, { ...base, grade: 1 });
-    expect(miss.state.enemy.hp).toBe(50);
-    expect(miss.state.player.hp).toBe(40 - 3 - 4);
-  });
-
-  it('gear and skills scale damage dealt and taken', () => {
-    const s = startCombat({ hp: 40, maxHp: 40, block: 0 }, enemy(), [], 0, false);
-    expect(50 - playCard(s, { ...base, dmgMult: 2 }).state.enemy.hp).toBe(10);
-    expect(playCard(s, { ...base, reduction: 0.5 }).state.player.hp).toBe(38);
-  });
-
-  it('combo builds on correct answers and resets on Again', () => {
-    let s = startCombat({ hp: 99, maxHp: 99, block: 0 }, enemy({ hp: 999, maxHp: 999 }), [], 0, false);
-    s = playCard(s, base).state;
-    s = playCard(s, base).state;
-    expect(s.combo).toBe(2);
-    expect(comboMultiplier(2, ADVENTURER)).toBeCloseTo(1.1);
-    s = playCard(s, { ...base, grade: 1 }).state;
-    expect(s.combo).toBe(0);
-  });
-
-  it('death ward saves once', () => {
-    const s = startCombat({ hp: 1, maxHp: 30, block: 0 }, enemy({ atk: 10 }), [], 0, false);
-    const ward: PlayInput = { ...base, relics: ['deathward'] };
-    const r = playCard(s, ward);
-    expect(r.state.player.hp).toBe(1);
-    expect(playCard(r.state, ward).events.some((e) => e.t === 'playerDied')).toBe(true);
-  });
-
-  it('tier-up offers three distinct effects featuring the new rarity', () => {
-    const c = tierUpChoices(3, 'attack');
-    expect(new Set(c).size).toBe(3);
-    expect(['meteor', 'phoenix', 'soulrend', 'plague']).toContain(c[0]);
-  });
-});
+const lvAt = (over: Partial<Record<string, number>> = {}) => ({ ...levels(EMPTY_XP), ...over }) as ReturnType<typeof levels>;
 
 describe('skills', () => {
   it('uses the classic exponential xp curve', () => {
@@ -151,61 +104,7 @@ describe('gathering and crafting', () => {
   });
 });
 
-describe('combat trips', () => {
-  it('kills drop loot and gold and count toward the boss', () => {
-    const w = W.newWorld(40);
-    const area = AREA_BY_ID.graveyard;
-    W.startTrip(w, area, () => 0);
-    w.combat!.enemy.hp = 1;
-    const r = W.combatPlay(w, lvAt(), 40, { effect: 'attack', tier: 1, wasNew: false }, 3, false, () => 0);
-    expect(r.killed).toBe(true);
-    expect(r.gold).toBeGreaterThan(0);
-    expect(r.loot.bones).toBe(1);
-    expect(w.bank.bones).toBe(1);
-    expect(w.bossProgress.graveyard).toBe(1);
-    expect(r.xp.attack).toBeGreaterThan(0);
-  });
-
-  it('style decides which skill gets damage xp', () => {
-    const w = W.newWorld(40);
-    w.style = 'strength';
-    W.startTrip(w, AREA_BY_ID.graveyard, () => 0);
-    const r = W.combatPlay(w, lvAt(), 40, { effect: 'attack', tier: 1, wasNew: false }, 3, false, () => 0.99);
-    expect(r.xp.strength).toBeGreaterThan(0);
-    expect(r.xp.attack).toBeUndefined();
-  });
-
-  it('dying ends the trip and wakes you at half health', () => {
-    const w = W.newWorld(40);
-    w.active = { kind: 'combat', id: 'graveyard' };
-    W.startTrip(w, AREA_BY_ID.graveyard, () => 0);
-    w.hp = 1;
-    const r = W.combatPlay(w, lvAt(), 40, { effect: 'heal', tier: 0, wasNew: false }, 1, false, () => 0.99);
-    expect(r.died).toBe(true);
-    expect(w.combat).toBeNull();
-    expect(w.active).toBeNull();
-    expect(w.hp).toBe(20);
-  });
-
-  it('equipment needs the level, and gear feeds combat bonuses', () => {
-    const w = W.newWorld(40);
-    w.bank['rune-sword'] = 1;
-    expect(W.equip(w, 'rune-sword', lvAt())).toBe(false);
-    expect(W.equip(w, 'rune-sword', lvAt({ attack: 45 }))).toBe(true);
-    w.bank['relic-goldtooth'] = 1;
-    W.equip(w, 'relic-goldtooth', lvAt());
-    const b = W.bonuses(w, lvAt({ attack: 45 }));
-    expect(b.weaponDmg).toBe(ITEMS['rune-sword'].equip!.dmg);
-    expect(b.relics).toContain('goldtooth');
-  });
-
-  it('auto-eats below a third of max HP', () => {
-    const w = W.newWorld(40);
-    w.hp = 10;
-    expect(W.autoEat(w, 40)).toBeGreaterThan(0);
-    expect(w.hp).toBeGreaterThanOrEqual(13);
-  });
-
+describe('hitpoints', () => {
   it('HP regenerates out of combat in real time', () => {
     const w = W.newWorld(40, 0);
     w.hp = 10;
@@ -274,16 +173,14 @@ describe('skills depend on each other', () => {
     const w = W.newWorld(40);
     const crypt = AREA_BY_ID.crypt;
     expect(W.areaLocked(w, crypt, 12)).toMatch(/crypt key/);
-    W.startTrip(w, AREA_BY_ID.graveyard, () => 0);
-    W.nextEnemy(w, () => 0, true);
-    w.combat!.enemy.hp = 1;
-    const r = W.combatPlay(w, lvAt(), 40, { effect: 'attack', tier: 1, wasNew: false }, 3, false, () => 0);
+    W.startTrip(w, AREA_BY_ID.graveyard, lvAt(), () => 0);
+    W.nextEnemy(w, lvAt(), () => 0, true);
+    const r = strikeDown(w);
     expect(r.loot['key-crypt']).toBe(1);
     expect(W.areaLocked(w, crypt, 12)).toBeNull();
     // the key only drops once
-    W.nextEnemy(w, () => 0, true);
-    w.combat!.enemy.hp = 1;
-    expect(W.combatPlay(w, lvAt(), 40, { effect: 'attack', tier: 1, wasNew: false }, 3, false, () => 0).loot['key-crypt']).toBeUndefined();
+    W.nextEnemy(w, lvAt(), () => 0, true);
+    expect(strikeDown(w).loot['key-crypt']).toBeUndefined();
   });
 });
 

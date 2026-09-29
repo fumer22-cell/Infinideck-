@@ -1,4 +1,4 @@
-import type { Biome } from './enemies';
+import type { Biome, Move, Trait } from './enemies';
 import { CROPS, FISH, FORGE_PIECES, METALS } from './items';
 import type { SkillId } from './skills';
 
@@ -129,7 +129,10 @@ export interface MonsterDef {
   sprite: string;
   hp: number;
   atk: number;
-  pattern: ('attack' | 'block' | 'buff')[];
+  pattern: Move[];
+  traits?: Trait[];
+  /** bosses switch to this below half health */
+  phase2?: Move[];
   gold: [number, number];
   drops: Drop[];
   boss?: boolean;
@@ -148,11 +151,11 @@ export const AREAS: AreaDef[] = [
     flavor: 'Rats and restless dead among the headstones.',
     bossAfter: 10,
     monsters: [
-      { id: 'rat', name: 'Plague Rat', sprite: 'rat', hp: 10, atk: 1, pattern: ['attack', 'attack', 'buff'], gold: [1, 4], drops: [{ item: 'bones', chance: 0.5 }, { item: 'seed-potato', chance: 0.15, min: 1, max: 3 }] },
-      { id: 'skeleton', name: 'Restless Bones', sprite: 'skeleton', hp: 16, atk: 2, pattern: ['attack', 'block', 'attack'], gold: [2, 6], drops: [{ item: 'bones', chance: 1 }, { item: 'bronze-sword', chance: 0.03 }, { item: 'seed-onion', chance: 0.08, min: 1, max: 2 }] },
-      { id: 'bat', name: 'Carrion Bat', sprite: 'bat', hp: 12, atk: 2, pattern: ['attack', 'attack'], gold: [1, 5], drops: [{ item: 'bones', chance: 0.4 }, { item: 'ore-copper', chance: 0.1, min: 2, max: 5 }] },
+      { id: 'rat', name: 'Plague Rat', sprite: 'rat', hp: 10, atk: 1, pattern: ['attack', 'poison', 'attack'], traits: ['venomous'], gold: [1, 4], drops: [{ item: 'bones', chance: 0.5 }, { item: 'seed-potato', chance: 0.15, min: 1, max: 3 }] },
+      { id: 'skeleton', name: 'Restless Bones', sprite: 'skeleton', hp: 16, atk: 2, pattern: ['attack', 'block', 'attack'], traits: ['armoured'], gold: [2, 6], drops: [{ item: 'bones', chance: 1 }, { item: 'bronze-sword', chance: 0.03 }, { item: 'seed-onion', chance: 0.08, min: 1, max: 2 }] },
+      { id: 'bat', name: 'Carrion Bat', sprite: 'bat', hp: 12, atk: 2, pattern: ['multi', 'attack'], gold: [1, 5], drops: [{ item: 'bones', chance: 0.4 }, { item: 'ore-copper', chance: 0.1, min: 2, max: 5 }] },
     ],
-    boss: { id: 'gravedigger', name: 'Old Mortis, the Gravedigger', sprite: 'ghoul', hp: 70, atk: 4, pattern: ['attack', 'buff', 'attack', 'block'], gold: [40, 80], drops: [{ item: 'key-crypt', chance: 1 }, { item: 'big-bones', chance: 1 }, { item: 'bar-iron', chance: 0.5, min: 2, max: 5 }, { item: 'iron-sword', chance: 0.2 }, ...trinkets(0.12)], boss: true },
+    boss: { id: 'gravedigger', name: 'Old Mortis, the Gravedigger', sprite: 'ghoul', hp: 70, atk: 4, pattern: ['attack', 'windup', 'heavy', 'block', 'attack'], phase2: ['buff', 'windup', 'heavy', 'multi'], gold: [40, 80], drops: [{ item: 'key-crypt', chance: 1 }, { item: 'big-bones', chance: 1 }, { item: 'bar-iron', chance: 0.5, min: 2, max: 5 }, { item: 'iron-sword', chance: 0.2 }, ...trinkets(0.12)], boss: true },
   },
   {
     id: 'crypt',
@@ -163,11 +166,11 @@ export const AREAS: AreaDef[] = [
     flavor: 'Bones rattle in the dark.',
     bossAfter: 10,
     monsters: [
-      { id: 'ghoul', name: 'Crypt Ghoul', sprite: 'ghoul', hp: 28, atk: 4, pattern: ['attack', 'attack', 'buff', 'attack'], gold: [5, 14], drops: [{ item: 'bones', chance: 1 }, { item: 'ore-iron', chance: 0.12, min: 1, max: 4 }, { item: 'seed-cabbage', chance: 0.06, min: 1, max: 2 }] },
-      { id: 'cultist', name: 'Ashen Cultist', sprite: 'cultist', hp: 24, atk: 4, pattern: ['buff', 'attack', 'attack'], gold: [8, 20], drops: [{ item: 'bones', chance: 1 }, { item: 'gem-sapphire', chance: 0.03 }, { item: 'seed-tomato', chance: 0.05 }] },
-      { id: 'skeleton2', name: 'Bone Sentry', sprite: 'skeleton', hp: 26, atk: 3, pattern: ['block', 'attack', 'attack'], gold: [5, 12], drops: [{ item: 'bones', chance: 1 }, { item: 'iron-helm', chance: 0.04 }] },
+      { id: 'ghoul', name: 'Crypt Ghoul', sprite: 'ghoul', hp: 28, atk: 4, pattern: ['attack', 'attack', 'buff'], traits: ['enrage'], gold: [5, 14], drops: [{ item: 'bones', chance: 1 }, { item: 'ore-iron', chance: 0.12, min: 1, max: 4 }, { item: 'seed-cabbage', chance: 0.06, min: 1, max: 2 }] },
+      { id: 'cultist', name: 'Ashen Cultist', sprite: 'cultist', hp: 24, atk: 4, pattern: ['buff', 'poison', 'attack'], gold: [8, 20], drops: [{ item: 'bones', chance: 1 }, { item: 'gem-sapphire', chance: 0.03 }, { item: 'seed-tomato', chance: 0.05 }] },
+      { id: 'skeleton2', name: 'Bone Sentry', sprite: 'skeleton', hp: 26, atk: 3, pattern: ['block', 'attack', 'windup', 'heavy'], traits: ['armoured'], gold: [5, 12], drops: [{ item: 'bones', chance: 1 }, { item: 'iron-helm', chance: 0.04 }] },
     ],
-    boss: { id: 'lich', name: 'Morvath, the Lich Unremembered', sprite: 'lich', hp: 150, atk: 7, pattern: ['attack', 'buff', 'attack', 'block', 'attack'], gold: [120, 220], drops: [{ item: 'key-bog', chance: 1 }, { item: 'big-bones', chance: 1 }, { item: 'ore-mithril', chance: 0.6, min: 3, max: 6 }, { item: 'steel-sword', chance: 0.2 }, { item: 'gem-emerald', chance: 0.3 }, ...trinkets(0.2)], boss: true },
+    boss: { id: 'lich', name: 'Morvath, the Lich Unremembered', sprite: 'lich', hp: 150, atk: 7, pattern: ['poison', 'attack', 'windup', 'heavy', 'block'], traits: ['regen'], phase2: ['buff', 'multi', 'windup', 'heavy'], gold: [120, 220], drops: [{ item: 'key-bog', chance: 1 }, { item: 'big-bones', chance: 1 }, { item: 'ore-mithril', chance: 0.6, min: 3, max: 6 }, { item: 'steel-sword', chance: 0.2 }, { item: 'gem-emerald', chance: 0.3 }, ...trinkets(0.2)], boss: true },
   },
   {
     id: 'bog',
@@ -178,11 +181,11 @@ export const AREAS: AreaDef[] = [
     flavor: 'Something stirs beneath the reeds.',
     bossAfter: 12,
     monsters: [
-      { id: 'slime', name: 'Bog Ooze', sprite: 'slime', hp: 42, atk: 5, pattern: ['block', 'attack', 'attack'], gold: [10, 25], drops: [{ item: 'ore-coal', chance: 0.2, min: 2, max: 6 }, { item: 'seed-strawberry', chance: 0.05 }] },
-      { id: 'wisp', name: 'Marsh Wisp', sprite: 'wisp', hp: 34, atk: 7, pattern: ['attack', 'buff', 'attack'], gold: [12, 30], drops: [{ item: 'gem-emerald', chance: 0.03 }, { item: 'seed-watermelon', chance: 0.02 }] },
-      { id: 'rat2', name: 'Bloated Rat', sprite: 'rat', hp: 30, atk: 5, pattern: ['attack', 'attack', 'buff'], gold: [8, 20], drops: [{ item: 'bones', chance: 1 }, { item: 'raw-salmon', chance: 0.15, min: 1, max: 3 }] },
+      { id: 'slime', name: 'Bog Ooze', sprite: 'slime', hp: 42, atk: 5, pattern: ['block', 'attack', 'attack'], traits: ['armoured', 'regen'], gold: [10, 25], drops: [{ item: 'ore-coal', chance: 0.2, min: 2, max: 6 }, { item: 'seed-strawberry', chance: 0.05 }] },
+      { id: 'wisp', name: 'Marsh Wisp', sprite: 'wisp', hp: 34, atk: 7, pattern: ['multi', 'buff', 'attack'], traits: ['enrage'], gold: [12, 30], drops: [{ item: 'gem-emerald', chance: 0.03 }, { item: 'seed-watermelon', chance: 0.02 }] },
+      { id: 'rat2', name: 'Bloated Rat', sprite: 'rat', hp: 30, atk: 5, pattern: ['poison', 'attack', 'attack'], traits: ['venomous'], gold: [8, 20], drops: [{ item: 'bones', chance: 1 }, { item: 'raw-salmon', chance: 0.15, min: 1, max: 3 }] },
     ],
-    boss: { id: 'hag', name: 'Grandmother Silt, Hag of the Bog', sprite: 'hag', hp: 240, atk: 9, pattern: ['attack', 'attack', 'block', 'buff'], gold: [250, 450], drops: [{ item: 'key-keep', chance: 1 }, { item: 'big-bones', chance: 1 }, { item: 'ore-adamantite', chance: 0.6, min: 2, max: 5 }, { item: 'mithril-sword', chance: 0.2 }, { item: 'gem-ruby', chance: 0.25 }, { item: 'seed-snapdragon', chance: 0.3, min: 1, max: 3 }, ...trinkets(0.25)], boss: true },
+    boss: { id: 'hag', name: 'Grandmother Silt, Hag of the Bog', sprite: 'hag', hp: 240, atk: 9, pattern: ['poison', 'attack', 'windup', 'heavy', 'buff'], traits: ['venomous'], phase2: ['multi', 'poison', 'windup', 'heavy'], gold: [250, 450], drops: [{ item: 'key-keep', chance: 1 }, { item: 'big-bones', chance: 1 }, { item: 'ore-adamantite', chance: 0.6, min: 2, max: 5 }, { item: 'mithril-sword', chance: 0.2 }, { item: 'gem-ruby', chance: 0.25 }, { item: 'seed-snapdragon', chance: 0.3, min: 1, max: 3 }, ...trinkets(0.25)], boss: true },
   },
   {
     id: 'keep',
@@ -193,11 +196,11 @@ export const AREAS: AreaDef[] = [
     flavor: 'Broken banners, broken men.',
     bossAfter: 12,
     monsters: [
-      { id: 'knight', name: 'Hollow Knight', sprite: 'knight', hp: 75, atk: 9, pattern: ['block', 'attack', 'attack', 'buff'], gold: [25, 60], drops: [{ item: 'bones', chance: 1 }, { item: 'ore-mithril', chance: 0.1, min: 1, max: 3 }, { item: 'adamant-helm', chance: 0.02 }] },
-      { id: 'cultist2', name: 'Ember Priest', sprite: 'cultist', hp: 60, atk: 9, pattern: ['buff', 'attack', 'attack'], gold: [30, 70], drops: [{ item: 'gem-ruby', chance: 0.03 }, { item: 'seed-snapdragon', chance: 0.03 }] },
-      { id: 'bat2', name: 'Keep Stalker', sprite: 'bat', hp: 48, atk: 8, pattern: ['attack', 'attack'], gold: [20, 45], drops: [{ item: 'bones', chance: 0.5 }, { item: 'ore-adamantite', chance: 0.06, min: 1, max: 2 }] },
+      { id: 'knight', name: 'Hollow Knight', sprite: 'knight', hp: 75, atk: 9, pattern: ['block', 'attack', 'windup', 'heavy'], traits: ['armoured'], gold: [25, 60], drops: [{ item: 'bones', chance: 1 }, { item: 'ore-mithril', chance: 0.1, min: 1, max: 3 }, { item: 'adamant-helm', chance: 0.02 }] },
+      { id: 'cultist2', name: 'Ember Priest', sprite: 'cultist', hp: 60, atk: 9, pattern: ['buff', 'attack', 'poison'], traits: ['enrage'], gold: [30, 70], drops: [{ item: 'gem-ruby', chance: 0.03 }, { item: 'seed-snapdragon', chance: 0.03 }] },
+      { id: 'bat2', name: 'Keep Stalker', sprite: 'bat', hp: 48, atk: 8, pattern: ['multi', 'attack', 'multi'], gold: [20, 45], drops: [{ item: 'bones', chance: 0.5 }, { item: 'ore-adamantite', chance: 0.06, min: 1, max: 2 }] },
     ],
-    boss: { id: 'king', name: 'Aldric, the Fallen King', sprite: 'king', hp: 400, atk: 13, pattern: ['block', 'attack', 'attack', 'buff', 'attack'], gold: [600, 1100], drops: [{ item: 'big-bones', chance: 1 }, { item: 'ore-runite', chance: 0.6, min: 1, max: 3 }, { item: 'rune-sword', chance: 0.15 }, { item: 'gem-diamond', chance: 0.25 }, ...trinkets(0.35)], boss: true },
+    boss: { id: 'king', name: 'Aldric, the Fallen King', sprite: 'king', hp: 400, atk: 13, pattern: ['attack', 'windup', 'heavy', 'block', 'buff'], traits: ['armoured', 'enrage'], phase2: ['multi', 'windup', 'heavy', 'attack'], gold: [600, 1100], drops: [{ item: 'big-bones', chance: 1 }, { item: 'ore-runite', chance: 0.6, min: 1, max: 3 }, { item: 'rune-sword', chance: 0.15 }, { item: 'gem-diamond', chance: 0.25 }, ...trinkets(0.35)], boss: true },
   },
 ];
 export const AREA_BY_ID = Object.fromEntries(AREAS.map((a) => [a.id, a])) as Record<string, AreaDef>;

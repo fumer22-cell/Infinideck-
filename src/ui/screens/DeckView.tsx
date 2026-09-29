@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { db } from '../../core/db';
 import { countDue, formatInterval, isLeech, State, TIER_NAMES, tierOf } from '../../core/srs';
 import type { CardRow, Deck } from '../../core/types';
-import { EFFECTS } from '../../game/effects';
 import { stripHtml } from '../../import/html';
 import { EmptyState, Sprite, TopBar } from '../common';
 import { useApp } from '../context';
@@ -100,7 +99,7 @@ export function DeckView({ deckId }: { deckId: number }) {
             const status = c.suspended ? 'suspended' : c.state === State.New ? 'new' : c.due <= now ? 'due' : `in ${formatInterval(c.due - now)}`;
             return (
               <button key={c.id} className="list-item" onClick={() => go({ name: 'editCard', deckId, cardId: c.id })}>
-                <Sprite name={EFFECTS[c.effect].icon} size={24} />
+                <Sprite name={tier >= 2 ? 'star' : 'book'} size={24} />
                 <div className="name">
                   <div className="card-preview">{stripHtml(c.front) || '(image)'}</div>
                   <div className="small muted">

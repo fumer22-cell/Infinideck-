@@ -1,3 +1,4 @@
+import type { WeaponKind } from './abilities';
 import { RELICS, type RelicId } from './relics';
 import type { SkillId } from './skills';
 
@@ -14,7 +15,7 @@ export interface ItemDef {
   kind: ItemKind;
   value: number;
   heal?: number;
-  equip?: { slot: Slot; skill?: SkillId; level: number; dmg?: number; dr?: number; relic?: RelicId };
+  equip?: { slot: Slot; skill?: SkillId; level: number; dmg?: number; dr?: number; relic?: RelicId; weapon?: WeaponKind };
   tool?: { kind: ToolKind; tier: number; level: number; skill: SkillId; bonus: number };
   desc?: string;
 }
@@ -39,6 +40,8 @@ export type MetalId = (typeof METALS)[number]['id'];
 /** Forgeable items per metal: bars used, smithing level offset. */
 export const FORGE_PIECES = [
   { piece: 'sword', name: 'Sword', icon: 'sword', bars: 1, offset: 0 },
+  { piece: 'dagger', name: 'Dagger', icon: 'daggers', bars: 1, offset: 1 },
+  { piece: 'battleaxe', name: 'Battleaxe', icon: 'axe', bars: 3, offset: 5 },
   { piece: 'pickaxe', name: 'Pickaxe', icon: 'pickaxe', bars: 2, offset: 1 },
   { piece: 'hatchet', name: 'Hatchet', icon: 'axe', bars: 2, offset: 1 },
   { piece: 'helm', name: 'Helm', icon: 'helm', bars: 1, offset: 3 },
@@ -56,8 +59,8 @@ for (const m of METALS) {
     if (p.piece === 'pickaxe' || p.piece === 'hatchet') {
       const skill: SkillId = p.piece === 'pickaxe' ? 'mining' : 'woodcutting';
       add({ id, name, icon: p.icon, tint, kind: 'tool', value, tool: { kind: p.piece === 'pickaxe' ? 'pickaxe' : 'axe', tier: m.tier, level: m.wield, skill, bonus: 0.05 * m.tier } });
-    } else if (p.piece === 'sword') {
-      add({ id, name, icon: p.icon, tint, kind: 'gear', value, equip: { slot: 'weapon', skill: 'attack', level: m.wield, dmg: [0.1, 0.2, 0.35, 0.5, 0.7, 0.95][m.tier - 1] } });
+    } else if (p.piece === 'sword' || p.piece === 'dagger' || p.piece === 'battleaxe') {
+      add({ id, name, icon: p.icon, tint, kind: 'gear', value, equip: { slot: 'weapon', skill: 'attack', level: m.wield, weapon: p.piece, dmg: [0.1, 0.2, 0.35, 0.5, 0.7, 0.95][m.tier - 1] } });
     } else {
       const per = p.piece === 'helm' ? 0.01 : p.piece === 'shield' ? 0.02 : 0.03;
       add({ id, name, icon: p.icon, tint, kind: 'gear', value, equip: { slot: p.piece as Slot, skill: 'defence', level: m.wield, dr: +(per * m.tier).toFixed(3) } });

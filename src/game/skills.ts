@@ -15,10 +15,10 @@ export const SKILLS: SkillDef[] = [
   { id: 'farming', name: 'Farming', icon: 'sprout', group: 'Gathering', desc: 'Plant with a card check; crops grow in real time.' },
   { id: 'smithing', name: 'Smithing', icon: 'anvil', group: 'Artisan', desc: 'Smelt bars in the furnace, forge gear and tools.' },
   { id: 'cooking', name: 'Cooking', icon: 'pot', group: 'Artisan', desc: 'Each card cooks one fish.' },
-  { id: 'attack', name: 'Attack', icon: 'sword', group: 'Combat', desc: '+1% damage per level; wield better weapons.' },
-  { id: 'strength', name: 'Strength', icon: 'fist', group: 'Combat', desc: '+1.5% damage per level.' },
-  { id: 'defence', name: 'Defence', icon: 'shield', group: 'Combat', desc: 'Take less damage; wear better armour.' },
-  { id: 'hitpoints', name: 'Hitpoints', icon: 'heart', group: 'Combat', desc: '+2 max HP per level.' },
+  { id: 'attack', name: 'Attack', icon: 'sword', group: 'Combat', desc: 'Raises Power; wield better weapons; learn Focus and Feint.' },
+  { id: 'strength', name: 'Strength', icon: 'fist', group: 'Combat', desc: 'Raises Power the most; learn War Cry and Overpower.' },
+  { id: 'defence', name: 'Defence', icon: 'shield', group: 'Combat', desc: 'Raises Guard and cuts damage taken; wear better armour.' },
+  { id: 'hitpoints', name: 'Hitpoints', icon: 'heart', group: 'Combat', desc: '+2 max HP per level; learn Second Wind.' },
   { id: 'scholarship', name: 'Scholarship', icon: 'book', group: 'Knowledge', desc: 'Every scheduled review, in any skill. +1% gold per level.' },
 ];
 export const SKILL_BY_ID = Object.fromEntries(SKILLS.map((s) => [s.id, s])) as Record<SkillId, SkillDef>;

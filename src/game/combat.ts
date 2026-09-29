@@ -1,207 +1,328 @@
-import type { EffectId, Tier } from '../core/types';
-import type { ClassDef } from './classes';
-import { GRADE_MULT, TIER_POWER } from './effects';
-import { intentFor, type EnemyState } from './enemies';
-import type { RelicId } from './relics';
+/**
+ * The combat engine. Each turn:
+ *  1. answer a flashcard: its grade gives energy (Again gives none)
+ *  2. spend energy on ability cards from your hand
+ *  3. end the turn: the enemy does what it telegraphed, then you draw a new hand
+ * Everything here is pure game state: scheduling never depends on it.
+ */
+import { ABILITIES, ENERGY_CAP, HAND_SIZE, energyFor, num, type CardApi, type CardInst, type CombatStats, type PoolCard } from './abilities';
+import { armourOf, intentFor, type EnemyState } from './enemies';
+import type { Rng } from './rng';
 
-export interface PlayerState { hp: number; maxHp: number; block: number }
-
-export interface CombatState {
-  player: PlayerState;
+export interface Fight {
   enemy: EnemyState;
-  combo: number;
-  cardsPlayed: number;
-  deathWardUsed: boolean;
+  phase: 'answer' | 'play';
+  energy: number;
+  block: number;
+  /** poison on you: deals its amount at the start of your turn, then drops by 1 */
+  poison: number;
+  hand: CardInst[];
+  draw: CardInst[];
+  discard: CardInst[];
+  exhausted: CardInst[];
+  /** multiplier for your next attack (Focus, Clarity) */
+  focus: number;
+  /** bonus damage on every hit (War Cry) */
+  str: number;
+  turn: number;
+  uid: number;
+  /** the killing blow came from Gilded Strike */
+  goldBonus?: boolean;
 }
 
-export interface PlayInput {
-  effect: EffectId;
-  tier: Tier;
-  grade: 1 | 2 | 3 | 4;
-  wasNew: boolean;
-  cls: ClassDef;
-  relics: RelicId[];
-  /** damage multiplier from skills and weapon */
-  dmgMult: number;
-  /** fraction of incoming damage ignored (Defence level + armour) */
-  reduction: number;
-  fast: boolean; // speed bonus earned (caller guarantees never for New cards)
-}
+export interface Hero { hp: number; maxHp: number }
 
 export type CombatEvent =
-  | { t: 'enemyDmg'; amount: number; crit?: boolean }
-  | { t: 'playerDmg'; amount: number }
+  | { t: 'enemyDmg'; amount: number; blocked?: number }
+  | { t: 'playerDmg'; amount: number; blocked?: number }
   | { t: 'heal'; amount: number }
   | { t: 'block'; amount: number }
   | { t: 'poison'; amount: number }
-  | { t: 'draw'; count: number }
+  | { t: 'playerPoison'; amount: number }
+  | { t: 'energy'; amount: number }
   | { t: 'enemyBlock'; amount: number }
-  | { t: 'enemyBuff' }
-  | { t: 'miss' }
-  | { t: 'deathWard' }
+  | { t: 'enemyHeal'; amount: number }
+  | { t: 'enemyBuff'; amount: number }
+  | { t: 'status'; text: string }
+  | { t: 'stun' }
   | { t: 'enemyDied' }
   | { t: 'playerDied' }
   | { t: 'log'; text: string; tone?: 'dmg' | 'heal' | 'info' | 'bad' | 'gold' | 'xp' };
 
-export interface PlayResult {
-  state: CombatState;
+export interface StepResult {
   events: CombatEvent[];
-  xp: { attack: number; defence: number; hitpoints: number };
+  /** damage you dealt and damage your block absorbed, for xp */
+  dealt: number;
+  absorbed: number;
+  killed: boolean;
+  died: boolean;
 }
 
-export function comboMultiplier(combo: number, cls: ClassDef): number {
-  return Math.min(cls.comboCap, 1 + cls.comboStep * Math.max(0, combo - 1));
+const MAX_HAND = 7;
+
+function shuffle<T>(xs: T[], rng: Rng): T[] {
+  const a = [...xs];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
-export function effectivePower(tier: Tier, wasNew: boolean, relics: RelicId[]): number {
-  const t: Tier = wasNew && relics.includes('grimoire') ? 1 : tier;
-  return TIER_POWER[t];
-}
-
-function clone(s: CombatState): CombatState {
-  return { ...s, player: { ...s.player }, enemy: { ...s.enemy, intent: { ...s.enemy.intent } } };
-}
-
-export function startCombat(player: PlayerState, enemy: EnemyState, relics: RelicId[], startBlock: number, deathWardUsed: boolean): CombatState {
-  return {
-    player: { ...player, block: startBlock + (relics.includes('ironskin') ? 4 : 0) },
-    enemy,
-    combo: relics.includes('comboring') ? 2 : 0,
-    cardsPlayed: 0,
-    deathWardUsed,
-  };
-}
-
-export function playCard(prev: CombatState, input: PlayInput): PlayResult {
-  const s = clone(prev);
-  const ev: CombatEvent[] = [];
-  const xp = { attack: 0, defence: 0, hitpoints: 0 };
-  const { cls, relics, grade } = input;
-  const p = effectivePower(input.tier, input.wasNew, relics);
-
-  const hit = (raw: number, opts: { pierce?: boolean; crit?: boolean } = {}) => {
-    let amt = Math.max(0, Math.round(raw));
-    if (!opts.pierce && s.enemy.block > 0) {
-      const absorbed = Math.min(s.enemy.block, amt);
-      s.enemy.block -= absorbed;
-      amt -= absorbed;
+function drawCards(f: Fight, n: number, rng: Rng) {
+  for (let i = 0; i < n && f.hand.length < MAX_HAND; i++) {
+    if (!f.draw.length) {
+      if (!f.discard.length) return;
+      f.draw = shuffle(f.discard, rng);
+      f.discard = [];
     }
-    const dealt = Math.min(amt, Math.max(0, s.enemy.hp));
-    s.enemy.hp -= amt;
-    ev.push({ t: 'enemyDmg', amount: amt, crit: opts.crit });
-    xp.attack += dealt * 4;
-    xp.hitpoints += Math.round(dealt * 1.33);
-    return dealt;
-  };
-  const heal = (raw: number) => {
-    const amt = Math.min(s.player.maxHp - s.player.hp, Math.max(0, Math.round(raw)));
-    s.player.hp += amt;
-    ev.push({ t: 'heal', amount: amt });
-    return amt;
-  };
-  const block = (raw: number) => {
-    const amt = Math.max(0, Math.round(raw));
-    s.player.block += amt;
-    ev.push({ t: 'block', amount: amt });
-  };
-  const hurtPlayer = (raw: number, pierce = false) => {
-    let amt = Math.max(0, Math.round(raw * (1 - Math.min(0.75, input.reduction))));
-    if (!pierce && s.player.block > 0) {
-      const absorbed = Math.min(s.player.block, amt);
-      s.player.block -= absorbed;
-      amt -= absorbed;
-      xp.defence += absorbed * 4;
-    }
-    s.player.hp -= amt;
-    ev.push({ t: 'playerDmg', amount: amt });
-    if (s.player.hp <= 0) {
-      if (relics.includes('deathward') && !s.deathWardUsed) {
-        s.deathWardUsed = true;
-        s.player.hp = 1;
-        ev.push({ t: 'deathWard' }, { t: 'log', text: 'The Death Ward shatters. You cling to life!', tone: 'info' });
-      } else {
-        ev.push({ t: 'playerDied' });
-      }
-    }
-  };
+    f.hand.push(f.draw.shift()!);
+  }
+}
 
-  // ---------- player action ----------
+export function newFight(deck: PoolCard[], enemy: EnemyState, rng: Rng): Fight {
+  let uid = 0;
+  const cards: CardInst[] = deck.map((c) => ({ uid: ++uid, id: c.id, plus: c.plus || undefined, food: c.food }));
+  const f: Fight = { enemy, phase: 'answer', energy: 0, block: 0, poison: 0, hand: [], draw: shuffle(cards, rng), discard: [], exhausted: [], focus: 1, str: 0, turn: 1, uid };
+  drawCards(f, HAND_SIZE, rng);
+  return f;
+}
+
+const empty = (): StepResult => ({ events: [], dealt: 0, absorbed: 0, killed: false, died: false });
+
+/** Step 1: the flashcard's grade becomes energy. */
+export function answerTurn(f: Fight, grade: 1 | 2 | 3 | 4, tier: number): StepResult {
+  const r = empty();
+  const gain = energyFor(grade, tier);
+  f.energy = Math.min(ENERGY_CAP, f.energy + gain);
+  f.phase = 'play';
+  r.events.push({ t: 'energy', amount: gain });
   if (grade === 1) {
-    s.combo = 0;
-    ev.push({ t: 'miss' }, { t: 'log', text: 'Your memory fails you. The strike misses!', tone: 'bad' });
-    const free = Math.max(0, Math.ceil(s.enemy.atk * 0.5) + 1 - (relics.includes('wardstone') ? 2 : 0));
-    ev.push({ t: 'log', text: `${s.enemy.name} seizes the opening.`, tone: 'bad' });
-    hurtPlayer(free);
-  } else {
-    s.combo += 1;
-    const crit = grade === 4;
-    const scale = GRADE_MULT[grade] * comboMultiplier(s.combo, cls) * (input.fast ? 1.25 : 1) * (crit && relics.includes('focuscrystal') ? 1.5 : 1);
-    const dmg = scale * cls.dmgMult * input.dmgMult;
-    const sup = scale * cls.healMult;
-    const times = s.cardsPlayed === 0 && relics.includes('twinstrike') ? 2 : 1;
-    for (let i = 0; i < times; i++) {
-      switch (input.effect) {
-        case 'attack': hit(p * dmg, { crit }); break;
-        case 'heal': heal(p * sup); break;
-        case 'shield': block(p * sup); break;
-        case 'poison': {
-          const amt = Math.max(1, Math.round(p * 0.6 * scale));
-          s.enemy.poison += amt;
-          ev.push({ t: 'poison', amount: amt });
-          break;
-        }
-        case 'draw': hit(Math.ceil(p * 0.5) * dmg, { crit }); ev.push({ t: 'draw', count: 1 }); break;
-        case 'doublehit': hit(p * 0.65 * dmg, { crit }); hit(p * 0.65 * dmg, { crit }); break;
-        case 'lifesteal': heal(hit(p * dmg, { crit }) * 0.5 * cls.healMult); break;
-        case 'cleave': hit(p * 1.2 * dmg, { crit, pierce: true }); break;
-        case 'meteor': hit(p * 2 * dmg, { crit }); break;
-        case 'phoenix': heal(p * sup); block(p * sup); break;
-        case 'soulrend': heal(hit(p * 1.5 * dmg, { crit }) * cls.healMult); break;
-        case 'plague': {
-          const amt = Math.round(p * scale);
-          s.enemy.poison += amt;
-          ev.push({ t: 'poison', amount: amt });
-          hit(Math.ceil(p * 0.5) * dmg, { crit });
-          break;
-        }
+    r.events.push({ t: 'log', text: 'Your memory falters: no energy this turn.', tone: 'bad' });
+    if (f.enemy.traits.includes('enrage')) {
+      f.enemy.str += 1;
+      f.enemy.intent = intentFor(f.enemy);
+      r.events.push({ t: 'enemyBuff', amount: 1 }, { t: 'log', text: `${f.enemy.name} smells weakness and grows stronger.`, tone: 'bad' });
+    }
+  } else r.events.push({ t: 'log', text: `+${gain} energy${tier >= 2 ? ' (mature card +1)' : ''}.`, tone: 'xp' });
+  return r;
+}
+
+export function cardCost(c: CardInst) {
+  return ABILITIES[c.id].cost;
+}
+
+/** Step 2: play one card from your hand. Returns null if it can't be played. */
+export function playFromHand(f: Fight, hero: Hero, uid: number, stats: CombatStats, extra: { foodHeal: number }, rng: Rng): StepResult | null {
+  const idx = f.hand.findIndex((c) => c.uid === uid);
+  if (idx < 0 || f.phase !== 'play') return null;
+  const card = f.hand[idx];
+  const def = ABILITIES[card.id];
+  if (def.cost > f.energy) return null;
+  if (card.id === 'eat' && extra.foodHeal <= 0) return null;
+  f.energy -= def.cost;
+  f.hand.splice(idx, 1);
+  (def.exhaust ? f.exhausted : f.discard).push(card);
+
+  const r = empty();
+  const e = f.enemy;
+  f.goldBonus = false;
+  let attacked = false;
+  const api: CardApi = {
+    hit(amount, opts = {}) {
+      if (e.hp <= 0) return 0;
+      attacked = true;
+      let amt = Math.round((amount + f.str) * f.focus * (e.vuln > 0 ? 1.5 : 1));
+      let blocked = 0;
+      if (!opts.pierce && e.block > 0) {
+        blocked = Math.min(e.block, amt);
+        e.block -= blocked;
+        amt -= blocked;
       }
-    }
-    if (grade >= 3 && relics.includes('ember') && s.enemy.hp > 0) hit(1);
-    if (crit && relics.includes('easyheal')) heal(1);
-  }
-  s.cardsPlayed += 1;
+      const dealt = Math.min(amt, e.hp);
+      e.hp -= amt;
+      r.dealt += dealt;
+      r.events.push({ t: 'enemyDmg', amount: amt, blocked });
+      return dealt;
+    },
+    block(amount) {
+      f.block += amount;
+      r.events.push({ t: 'block', amount });
+    },
+    heal(amount) {
+      const amt = Math.max(0, Math.min(hero.maxHp - hero.hp, amount));
+      hero.hp += amt;
+      r.events.push({ t: 'heal', amount: amt });
+      return amt;
+    },
+    poison(amount) {
+      e.poison += amount;
+      r.events.push({ t: 'poison', amount });
+    },
+    weak(turns) {
+      e.weak = Math.max(e.weak, turns);
+      r.events.push({ t: 'status', text: `Weak ${turns}` });
+    },
+    vuln(turns) {
+      e.vuln = Math.max(e.vuln, turns);
+      r.events.push({ t: 'status', text: `Vulnerable ${turns}` });
+    },
+    stun() {
+      if (e.hp <= 0) return;
+      if (e.boss) {
+        e.weak = Math.max(e.weak, 2);
+        r.events.push({ t: 'status', text: 'Weak 2' }, { t: 'log', text: `${e.name} shrugs off the stun but reels (Weak 2).`, tone: 'info' });
+      } else {
+        e.stunned = true;
+        r.events.push({ t: 'stun' }, { t: 'log', text: `${e.name} is stunned and will lose its next move.`, tone: 'info' });
+      }
+    },
+    draw(n) {
+      drawCards(f, n, rng);
+    },
+    energy(n) {
+      f.energy = Math.min(ENERGY_CAP, f.energy + n);
+      r.events.push({ t: 'energy', amount: n });
+    },
+    focus(mult) {
+      f.focus = Math.max(f.focus, mult);
+    },
+    strength(n) {
+      f.str += n;
+      r.events.push({ t: 'status', text: `+${n} damage` });
+    },
+    goldOnKill() {
+      f.goldBonus = true;
+    },
+  };
+  const before = e.hp;
+  def.play(api, num(stats, card.plus, card.food), extra);
+  // focus is spent by the first attack it boosts
+  if (attacked && def.id !== 'focus' && def.id !== 'clarity') f.focus = 1;
+  if (e.hp <= 0 && before > 0) {
+    r.killed = true;
+    r.events.push({ t: 'enemyDied' });
+  } else f.goldBonus = false;
+  return r;
+}
 
-  if (s.player.hp <= 0) return { state: s, events: ev, xp };
-  if (s.enemy.hp <= 0) {
-    ev.push({ t: 'enemyDied' });
-    return { state: s, events: ev, xp };
+function hurtHero(f: Fight, hero: Hero, raw: number, stats: CombatStats, r: StepResult) {
+  let amt = Math.max(0, Math.round(raw * (1 - stats.reduction) * (f.enemy.weak > 0 ? 0.75 : 1)));
+  let blocked = 0;
+  if (f.block > 0) {
+    blocked = Math.min(f.block, amt);
+    f.block -= blocked;
+    amt -= blocked;
+    r.absorbed += blocked;
   }
+  hero.hp -= amt;
+  r.events.push({ t: 'playerDmg', amount: amt, blocked });
+  if (amt > 0 && f.enemy.traits.includes('venomous')) {
+    f.poison += 1;
+    r.events.push({ t: 'playerPoison', amount: 1 });
+  }
+  if (hero.hp <= 0 && !r.died) {
+    r.died = true;
+    r.events.push({ t: 'playerDied' });
+  }
+}
 
-  // ---------- enemy turn ----------
-  s.enemy.block = 0;
-  if (s.enemy.poison > 0) {
-    const tick = s.enemy.poison + (relics.includes('venomgland') ? 1 : 0);
-    s.enemy.hp -= tick;
-    xp.attack += Math.min(tick, s.enemy.hp + tick) * 2;
-    ev.push({ t: 'enemyDmg', amount: tick }, { t: 'log', text: `Poison eats at ${s.enemy.name} for ${tick}.`, tone: 'dmg' });
-    s.enemy.poison -= 1;
-    if (s.enemy.hp <= 0) {
-      ev.push({ t: 'enemyDied' });
-      return { state: s, events: ev, xp };
+/** Step 3: the enemy acts on its intent, then a new turn begins. */
+export function endTurn(f: Fight, hero: Hero, stats: CombatStats, rng: Rng): StepResult {
+  const r = empty();
+  const e = f.enemy;
+  if (e.hp <= 0) return r;
+
+  // the enemy's turn: its old block falls away, poison ticks, then it acts
+  e.block = 0;
+  if (e.poison > 0) {
+    const tick = Math.min(e.poison, e.hp);
+    e.hp -= e.poison;
+    r.dealt += tick;
+    r.events.push({ t: 'enemyDmg', amount: e.poison }, { t: 'log', text: `Poison eats at ${e.name} for ${e.poison}.`, tone: 'dmg' });
+    e.poison -= 1;
+    if (e.hp <= 0) {
+      r.killed = true;
+      r.events.push({ t: 'enemyDied' });
+      return r;
     }
   }
-  const intent = s.enemy.intent;
-  if (intent.kind === 'attack') {
-    ev.push({ t: 'log', text: `${s.enemy.name} attacks!`, tone: 'bad' });
-    hurtPlayer(intent.value);
-  } else if (intent.kind === 'block') {
-    s.enemy.block += intent.value;
-    ev.push({ t: 'enemyBlock', amount: intent.value }, { t: 'log', text: `${s.enemy.name} raises its guard (${intent.value}).`, tone: 'info' });
+  const it = e.intent;
+  if (e.stunned) {
+    e.stunned = false;
+    r.events.push({ t: 'log', text: `${e.name} is stunned and loses its move.`, tone: 'info' });
+    // a stunned wind-up never lands
+    if (it.kind === 'windup') e.patternIdx += 1;
   } else {
-    s.enemy.atk += intent.value;
-    ev.push({ t: 'enemyBuff' }, { t: 'log', text: `${s.enemy.name} grows stronger.`, tone: 'bad' });
+    switch (it.kind) {
+      case 'attack':
+        r.events.push({ t: 'log', text: `${e.name} attacks!`, tone: 'bad' });
+        hurtHero(f, hero, it.value, stats, r);
+        break;
+      case 'heavy':
+        r.events.push({ t: 'log', text: `${e.name} unleashes a crushing blow!`, tone: 'bad' });
+        hurtHero(f, hero, it.value, stats, r);
+        break;
+      case 'multi':
+        r.events.push({ t: 'log', text: `${e.name} strikes in a frenzy!`, tone: 'bad' });
+        for (let i = 0; i < (it.hits ?? 1) && !r.died; i++) hurtHero(f, hero, it.value, stats, r);
+        break;
+      case 'poison':
+        r.events.push({ t: 'log', text: `${e.name} strikes with venom!`, tone: 'bad' });
+        hurtHero(f, hero, it.value, stats, r);
+        f.poison += it.hits ?? 0;
+        r.events.push({ t: 'playerPoison', amount: it.hits ?? 0 });
+        break;
+      case 'block':
+        e.block += it.value;
+        r.events.push({ t: 'enemyBlock', amount: it.value }, { t: 'log', text: `${e.name} raises its guard (${it.value}).`, tone: 'info' });
+        break;
+      case 'buff':
+        e.str += it.value;
+        r.events.push({ t: 'enemyBuff', amount: it.value }, { t: 'log', text: `${e.name} grows stronger (+${it.value}).`, tone: 'bad' });
+        break;
+      case 'windup':
+        r.events.push({ t: 'log', text: `${e.name} gathers itself for a heavy blow. Block it, or stun it!`, tone: 'bad' });
+        break;
+    }
   }
-  s.enemy.patternIdx += 1;
-  s.enemy.intent = intentFor(s.enemy);
-  return { state: s, events: ev, xp };
+  if (e.traits.includes('armoured')) {
+    e.block += armourOf(e);
+    r.events.push({ t: 'enemyBlock', amount: armourOf(e) });
+  }
+  if (e.traits.includes('regen') && e.hp < e.maxHp) {
+    const h = Math.min(e.maxHp - e.hp, Math.ceil(e.maxHp * 0.04));
+    e.hp += h;
+    r.events.push({ t: 'enemyHeal', amount: h });
+  }
+  if (e.weak > 0) e.weak -= 1;
+  if (e.vuln > 0) e.vuln -= 1;
+  e.patternIdx += 1;
+  if (e.phase2 && !e.enraged && e.hp <= e.maxHp / 2) {
+    e.enraged = true;
+    e.pattern = e.phase2;
+    e.patternIdx = 0;
+    r.events.push({ t: 'log', text: `${e.name} is wounded and turns desperate!`, tone: 'bad' });
+  }
+  e.intent = intentFor(e);
+  if (r.died) return r;
+
+  // your new turn: block fades, poison ticks, draw a fresh hand
+  f.block = 0;
+  if (f.poison > 0) {
+    hero.hp -= f.poison;
+    r.events.push({ t: 'playerDmg', amount: f.poison }, { t: 'log', text: `Poison burns you for ${f.poison}.`, tone: 'bad' });
+    f.poison -= 1;
+    if (hero.hp <= 0) {
+      r.died = true;
+      r.events.push({ t: 'playerDied' });
+      return r;
+    }
+  }
+  f.discard.push(...f.hand);
+  f.hand = [];
+  drawCards(f, HAND_SIZE, rng);
+  f.phase = 'answer';
+  f.turn += 1;
+  return r;
 }

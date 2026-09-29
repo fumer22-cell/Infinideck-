@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { db } from '../../core/db';
 import { newCardRow, TIER_NAMES, tierOf } from '../../core/srs';
 import type { CardRow } from '../../core/types';
-import { EFFECTS, rollStartingEffect, TIER_POWER } from '../../game/effects';
+import { rollStartingEffect } from '../../game/effects';
 import { editorToHtml, htmlToEditable, mimeFor, stripHtml } from '../../import/html';
 import { CardFace, Sprite, TopBar } from '../common';
 import { useApp } from '../context';
@@ -112,10 +112,10 @@ export function CardEditor({ deckId, cardId }: { deckId: number; cardId?: number
         )}
         {card && (
           <div className="leather row">
-            <Sprite name={EFFECTS[card.effect].icon} size={32} />
+            <Sprite name={tier >= 2 ? 'star' : 'book'} size={32} />
             <div className="grow small">
-              <div className="gold">{EFFECTS[card.effect].name} · {TIER_NAMES[tier]}</div>
-              <div>{EFFECTS[card.effect].desc(TIER_POWER[tier])}</div>
+              <div className="gold">{TIER_NAMES[tier]}</div>
+              <div>{tier >= 2 ? 'Mature: +1 energy in combat and better finds in every skill.' : 'Matures at a 21-day interval: then it gives +1 energy in combat and better finds.'}</div>
               <div className="muted">Reps {card.reps} · Lapses {card.lapses} · Interval {card.scheduled_days}d</div>
             </div>
           </div>
