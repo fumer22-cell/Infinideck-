@@ -159,6 +159,10 @@ for (const r of Object.values(RELICS)) {
   add({ id: `relic-${r.id}`, name: r.name, icon: r.icon, kind: 'trinket', value: r.cost * 10, equip: { slot, level: 1, relic: r.id }, desc: r.desc });
 }
 
+// ---------- quest rewards ----------
+add({ id: 'fert-phosphate', name: 'Phosphate fertiliser', icon: 'potion', tint: { R: '#e8dca0', g: '#c8c0a0' }, kind: 'misc', value: 15, desc: 'Ammonium phosphate, made for Thornwick’s fields. +150% harvest when planting.' });
+add({ id: 'alembic', name: 'Alembic of Insight', icon: 'flask', tint: { C: '#c8f0ff' }, kind: 'misc', value: 0, desc: 'Distilled understanding. Pour it out for 750 xp in a skill of your choice.' });
+
 // ---------- quality variants ----------
 add({ id: 'burnt-food', name: 'Burnt food', icon: 'fish', tint: { y: '#2a1a10', Y: '#4a3020' }, kind: 'misc', value: 0, desc: 'Burnt to a crisp. Keep a streak going to cook better.' });
 

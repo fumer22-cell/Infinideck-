@@ -20,10 +20,14 @@ import { DeckView } from './screens/DeckView';
 import { CardEditor } from './screens/CardEditor';
 import { ImportScreen } from './screens/ImportScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
+import { QuestScreen } from './quests/QuestScreen';
+import { QuestsTab } from './quests/QuestsTab';
+import { QUESTS } from '../game/quests';
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'study', label: 'Study', icon: 'eye' },
   { id: 'skills', label: 'Skills', icon: 'star' },
+  { id: 'quests', label: 'Quests', icon: 'scroll' },
   { id: 'bank', label: 'Bank', icon: 'chest' },
   { id: 'gear', label: 'Gear', icon: 'helm' },
   { id: 'journey', label: 'Journey', icon: 'book' },
@@ -171,6 +175,8 @@ export function App() {
   if (dueCount) badges.study = { text: dueCount > 99 ? '99+' : String(dueCount), label: `${dueCount} cards due` };
   if (readyPlots) badges.skills = { text: String(readyPlots), label: `${readyPlots} crops ready`, tone: 'green' };
   if (profile.chestPending) badges.journey = { label: 'streak chest waiting' };
+  const newQuests = QUESTS.filter((q) => !world.quests?.[q.id]).length;
+  if (newQuests) badges.quests = { label: `${newQuests} new quest${newQuests > 1 ? 's' : ''}`, tone: 'gold' };
 
   return (
     <Ctx.Provider value={app}>
@@ -233,5 +239,7 @@ function Route({ screen }: { screen: Screen }) {
     case 'editCard': return <CardEditor deckId={screen.deckId} cardId={screen.cardId} />;
     case 'import': return <ImportScreen deckId={screen.deckId} />;
     case 'settings': return <SettingsScreen />;
+    case 'quests': return <QuestsTab />;
+    case 'quest': return <QuestScreen id={screen.id} echo={screen.echo} />;
   }
 }

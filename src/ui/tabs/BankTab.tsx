@@ -3,12 +3,15 @@ import { SHOP } from '../../game/activities';
 import { ITEMS, type ItemKind } from '../../game/items';
 import { randInt } from '../../game/rng';
 import { addItems, canEquip, equip, hasItems, pushLog, removeItems } from '../../game/world';
-import { EmptyState, GoldPill, ItemIcon, NavRow, PageHeader, SectionTitle, TopBar } from '../common';
+import { SKILL_BY_ID, SKILLS, type SkillId } from '../../game/skills';
+import { EmptyState, GoldPill, ItemIcon, NavRow, PageHeader, SectionTitle, Sprite, TopBar } from '../common';
 import { useApp } from '../context';
 import { sfx } from '../sfx';
 
 const ORDER: ItemKind[] = ['legendary', 'pet', 'food', 'fish', 'ore', 'gem', 'bar', 'log', 'seed', 'crop', 'gear', 'tool', 'trinket', 'misc'];
 const KIND_LABEL: Record<ItemKind, string> = { food: 'Food', fish: 'Raw fish', ore: 'Ore', gem: 'Gems', bar: 'Bars', log: 'Logs', seed: 'Seeds', crop: 'Crops', gear: 'Equipment', tool: 'Tools', trinket: 'Trinkets', legendary: 'Legendary finds', pet: 'Pets', misc: 'Other' };
+/** xp from pouring out an Alembic of Insight (a quest reward) */
+export const ALEMBIC_XP = 750;
 const NEST_SEEDS = ['seed-potato', 'seed-potato', 'seed-onion', 'seed-onion', 'seed-cabbage', 'seed-tomato', 'seed-strawberry', 'seed-watermelon'];
 
 export function BankTab() {
@@ -56,6 +59,7 @@ function ItemSheet({ id, onClose }: { id: string; onClose: () => void }) {
   const d = ITEMS[id];
   const n = world.bank[id] ?? 0;
   const e = d.equip;
+  const [pouring, setPouring] = useState(false);
 
   const sell = async (qty: number) => {
     if (qty > 1 && (d.kind === 'gear' || d.kind === 'trinket' || d.kind === 'tool') && !(await app.ask(`Sell ${qty} ${d.name} for ${qty * d.value} gold?`, 'Sell'))) return;
@@ -108,6 +112,34 @@ function ItemSheet({ id, onClose }: { id: string; onClose: () => void }) {
     app.toast(msg);
   };
 
+  const pour = async (skill: SkillId) => {
+    await app.updateWorld((w) => {
+      removeItems(w, { alembic: 1 });
+      pushLog(w, `The alembic’s insight pours into your ${SKILL_BY_ID[skill].name}: +${ALEMBIC_XP} xp.`, 'xp');
+    });
+    await app.gainXp({ [skill]: ALEMBIC_XP });
+    setPouring(false);
+    onClose();
+  };
+
+  if (pouring)
+    return (
+      <div className="modal-back" onClick={() => setPouring(false)}>
+        <div className="modal stone gilded" role="dialog" aria-label="Choose a skill" onClick={(ev) => ev.stopPropagation()}>
+          <h2>Pour into which skill?</h2>
+          <div className="desc small">{ALEMBIC_XP} xp, all at once.</div>
+          <div className="level-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+            {SKILLS.map((s) => (
+              <button key={s.id} className="level-cell" onClick={() => pour(s.id)} aria-label={`${s.name}, level ${lv[s.id]}`}>
+                <Sprite name={s.icon} size={18} /> <span className="small">{s.name}</span>
+              </button>
+            ))}
+          </div>
+          <button className="btn block plain small" onClick={() => setPouring(false)}>Cancel</button>
+        </div>
+      </div>
+    );
+
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal stone gilded" role="dialog" aria-label={d.name} onClick={(ev) => ev.stopPropagation()}>
@@ -134,6 +166,7 @@ function ItemSheet({ id, onClose }: { id: string; onClose: () => void }) {
           {d.heal ? <button className="btn" disabled={world.food === id} onClick={setFood}>{world.food === id ? 'Your food' : 'Set as food'}</button> : null}
           {d.heal ? <button className="btn green" onClick={eatNow}>Eat</button> : null}
           {(id === 'bird-nest' || id === 'casket') && <button className="btn green" onClick={open}>Open</button>}
+          {id === 'alembic' && <button className="btn green" onClick={() => setPouring(true)}>Pour it out</button>}
           {d.value > 0 && <button className="btn stone" onClick={() => sell(1)}>Sell 1 ({d.value}g)</button>}
           {d.value > 0 && n > 1 && <button className="btn stone" onClick={() => sell(n)}>Sell all ({(n * d.value).toLocaleString()}g)</button>}
         </div>

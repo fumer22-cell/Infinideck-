@@ -72,7 +72,31 @@ Bosses drag your due **leech** cards (4+ lapses) up first, and beating the boss 
 
 - **Bank** and **general store**: sell anything; buy seeds, bread, rods and starter tools.
 - **Gear**: six equipment slots, packed food, your combat style and the combat deck builder.
+- **Quests**: story quests built from problem sets (see below).
 - **Journey**: total and combat level, the daily **streak chest** for clearing your queue, and milestone rewards at 50 / 100 / 500 / 1000 mature cards.
+
+## Quests
+
+Quests are separate from your flashcards. They're stories told through problems, and each chapter's problem moves the plot forward. Answers are checked the way chemistry homework systems check them:
+- An answer is right within one unit in the last place, so slightly different molar-mass tables still pass.
+- If the value is right but the rounding isn't, you're told to fix the rounding, and it doesn't count as a miss.
+- Common slips (a forgotten mole ratio, the wrong limiting reagent) get an in-character nudge.
+
+Each miss reveals a hint. After three misses you're shown the worked solution. A chapter solved with no misses and no hints earns a star.
+
+- **Rewards**: gold, resources, Scholarship xp, **quest points**, an **Alembic of Insight** (750 xp poured into the skill of your choice from the Bank), and **spells**. Spells are combat cards that join your deck. A flawless quest (every chapter starred) upgrades its spells to their + versions.
+- **Practice runs**: once a quest is done, replay every chapter with freshly rolled numbers. It's the same reasoning with new sums, for a little gold and xp.
+
+**The Vitriol Blight** (chemistry: stoichiometry). Mireille Ashgrove, Thornwick's hedge-alchemist, needs help:
+1. Brew ammonium phosphate fertiliser from spirit of hartshorn (grams to grams via a mole ratio).
+2. Survive a sealed mine by finding which runs out first, the lamp oil or the air (limiting reagent and leftover mass).
+3. Burn aluminium into a corundum lens (limiting reagent in moles).
+4. Brew an antidote (conservation of mass and percent yield).
+5. Neutralise the Ashen Cult's vat of vitriol (theoretical yield with a limiting reagent).
+
+It teaches the **Antidote** and **Vitriol Flask** spells.
+
+New quests go in `src/game/quests/`: one file per quest, registered in `index.ts`.
 
 ## Rewards and penalties
 

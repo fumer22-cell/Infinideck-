@@ -4,7 +4,7 @@ import type { Settings } from '../core/settings';
 import type { Levels, SkillId } from '../game/skills';
 import type { World } from '../game/world';
 
-export type Tab = 'study' | 'skills' | 'bank' | 'gear' | 'journey';
+export type Tab = 'study' | 'skills' | 'quests' | 'bank' | 'gear' | 'journey';
 
 export type Screen =
   | { name: Tab }
@@ -14,7 +14,8 @@ export type Screen =
   | { name: 'deck'; deckId: number }
   | { name: 'editCard'; deckId: number; cardId?: number }
   | { name: 'import'; deckId?: number }
-  | { name: 'settings' };
+  | { name: 'settings' }
+  | { name: 'quest'; id: string; echo?: boolean };
 
 export interface AppCtx {
   settings: Settings;

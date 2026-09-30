@@ -194,6 +194,14 @@ export function playFromHand(f: Fight, hero: Hero, uid: number, stats: CombatSta
     goldOnKill() {
       f.goldBonus = true;
     },
+    cleanse() {
+      if (f.poison > 0) r.events.push({ t: 'status', text: 'Cured' }, { t: 'log', text: 'The antidote burns the poison out of your blood.', tone: 'heal' });
+      f.poison = 0;
+    },
+    strip() {
+      if (e.block > 0) r.events.push({ t: 'status', text: `-${e.block} block` }, { t: 'log', text: `Vitriol eats through ${e.name}'s guard.`, tone: 'dmg' });
+      e.block = 0;
+    },
   };
   const before = e.hp;
   def.play(api, num(stats, card.plus, card.food), extra);

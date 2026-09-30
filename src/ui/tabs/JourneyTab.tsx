@@ -6,6 +6,7 @@ import { combatLevel, SKILLS, totalLevel } from '../../game/skills';
 import { countMature } from '../actions';
 import { CloudBadge } from '../CloudGate';
 import { COLLECTION, ITEMS } from '../../game/items';
+import { questPoints } from '../../game/quests';
 import { GoldPill, ItemIcon, NavRow, PageHeader, SectionTitle, Sprite, XpBar } from '../common';
 import { useApp } from '../context';
 import { HeroView } from '../HeroView';
@@ -159,6 +160,7 @@ export function JourneyTab() {
         <div className="stat"><b>{world.stats.deaths}</b><span>DEATHS</span></div>
         <div className="stat"><b>{profile.streak.best}</b><span>BEST DAYS</span></div>
         <div className="stat"><b>{world.bestChain ?? 0}</b><span>BEST STREAK</span></div>
+        <div className="stat"><b>{questPoints(world)}</b><span>QUEST POINTS</span></div>
         <div className="stat"><b>{totalLevel(lv)}</b><span>TOTAL LVL</span></div>
       </div>
     </div>

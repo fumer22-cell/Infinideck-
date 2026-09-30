@@ -15,7 +15,8 @@ export type AbilityId =
   | 'shieldbash' | 'steady' | 'bulwark'
   | 'focus' | 'brace' | 'warcry' | 'secondwind' | 'riposte' | 'feint' | 'overpower'
   | 'flurry' | 'feather' | 'ironskin' | 'plague' | 'gilded' | 'starfall' | 'insight' | 'soulrend' | 'hexward' | 'rhythm' | 'phoenix' | 'clarity'
-  | 'eat';
+  | 'eat'
+  | 'antidote' | 'vitriol';
 
 /** One card in a fight: an ability, maybe upgraded (+) by a masterwork item. */
 export interface CardInst { uid: number; id: AbilityId; plus?: boolean; food?: string }
@@ -45,6 +46,10 @@ export interface CardApi {
   focus(mult: number): void;
   strength(n: number): void;
   goldOnKill(): void;
+  /** clear all poison on you */
+  cleanse(): void;
+  /** dissolve all of the enemy's block */
+  strip(): void;
 }
 
 export interface AbilityDef {
@@ -115,6 +120,9 @@ export const ABILITIES: Record<AbilityId, AbilityDef> = {
   rhythm: A({ id: 'rhythm', name: 'Rhythm', icon: 'ring', cost: 0, kind: 'skill', exhaust: true, text: (n) => `Gain ${n.k > 1 ? 3 : 2} energy. Once per fight.`, play: (a, n) => a.energy(n.k > 1 ? 3 : 2) }),
   phoenix: A({ id: 'phoenix', name: 'Phoenix Rite', icon: 'flame', cost: 2, kind: 'skill', exhaust: true, text: (n) => `Heal ${n.hp(0.3)}. Block ${n.g(1)}. Once per fight.`, play: (a, n) => { a.heal(n.hp(0.3)); a.block(n.g(1)); } }),
   clarity: A({ id: 'clarity', name: 'Clarity', icon: 'gem', cost: 0, kind: 'skill', text: () => 'Your next attack deals double.', play: (a) => a.focus(2) }),
+  // spells learned on quests
+  antidote: A({ id: 'antidote', name: 'Antidote', icon: 'potion', cost: 0, kind: 'skill', exhaust: true, text: (n) => `Cure all your poison. Heal ${n.hp(0.1)}. Once per fight.`, play: (a, n) => { a.cleanse(); a.heal(n.hp(0.1)); } }),
+  vitriol: A({ id: 'vitriol', name: 'Vitriol Flask', icon: 'flask', cost: 1, kind: 'attack', text: (n) => `Dissolve all enemy block. Deal ${n.d(0.8)} and apply ${n.d(0.4)} poison.`, play: (a, n) => { a.strip(); a.hit(n.d(0.8)); a.poison(n.d(0.4)); } }),
   // food you packed
   eat: A({ id: 'eat', name: 'Eat', icon: 'bread', cost: 1, kind: 'item', text: (n) => (n.food ? `Eat 1 ${ITEMS[n.food].name.toLowerCase()}: heal ${ITEMS[n.food].heal}.` : 'Eat your packed food.'), play: (a, _n, x) => void a.heal(x.foodHeal) }),
 };
@@ -158,7 +166,9 @@ export function energyFor(grade: 1 | 2 | 3 | 4, tier: number): number {
 /** Weapon power by metal tier (0 = bare hands). */
 export const weaponPower = (tier: number) => 3 + 2 * tier;
 
-export interface Loadout { equip: Partial<Record<string, string>>; food: string | null; bank: Record<string, number> }
+/** A spell learned on a quest; `plus` if the quest was completed flawlessly. */
+export interface Spell { id: AbilityId; plus?: boolean }
+export interface Loadout { equip: Partial<Record<string, string>>; food: string | null; bank: Record<string, number>; spells?: Spell[] }
 
 function metalTier(id: string | undefined): number {
   if (!id) return 0;
@@ -220,6 +230,7 @@ export function cardPool(l: Loadout, lv: Levels): PoolCard[] {
     if (id && relic) push([RELIC_CARD[relic]], id);
   }
   for (const t of TECHNIQUES) if (lv[t.skill] >= t.level) push([t.id], 'technique');
+  for (const sp of l.spells ?? []) push([sp.id], 'spellbook', !!sp.plus);
   if (l.food && (l.bank[l.food] ?? 0) > 0) push(['eat', 'eat'], 'food', false, l.food);
   return out;
 }

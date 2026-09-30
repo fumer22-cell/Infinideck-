@@ -7,7 +7,8 @@
 import { kvGet, kvSet } from '../core/db';
 import type { Tier } from '../core/types';
 import { AREA_BY_ID, COOKING, FORGING, GATHER, SEEDS, SMELTING, plotCount, smeltBatchCap, type AreaDef, type Drop, type MonsterDef } from './activities';
-import { activeDeck, combatStats, type CombatStats, type Loadout } from './abilities';
+import { activeDeck, combatStats, type CombatStats, type Loadout, type Spell } from './abilities';
+import type { QuestProgress } from './quests/types';
 import { answerTurn, endTurn, newFight, playFromHand, type CombatEvent, type Fight, type StepResult } from './combat';
 import { intentFor, type EnemyState } from './enemies';
 import { ITEMS, LEGENDARIES, LOG_ORDER, masterworkOf, METALS, perfectOf, PETS, type Slot, type ToolKind } from './items';
@@ -74,6 +75,10 @@ export interface World {
   collection?: Record<string, number>;
   /** combat cards you switched off in the deck builder (PoolCard keys) */
   deckOff?: string[];
+  /** progress through each quest (see game/quests) */
+  quests?: Record<string, QuestProgress>;
+  /** combat spells learned on quests */
+  spells?: Spell[];
 }
 
 export function newWorld(maxHp: number, now = Date.now()): World {
@@ -187,7 +192,7 @@ export function unequip(w: World, slot: Slot) {
 }
 
 export function loadout(w: World): Loadout {
-  return { equip: w.equip, food: w.food, bank: w.bank };
+  return { equip: w.equip, food: w.food, bank: w.bank, spells: w.spells };
 }
 export function statsFor(w: World, lv: Levels, maxHp: number): CombatStats {
   return combatStats(loadout(w), lv, maxHp);
@@ -424,7 +429,7 @@ export function syncPlots(w: World, lv: Levels) {
 }
 
 /** Bones from combat make good fertiliser. */
-export const FERTILISER: Record<string, number> = { bones: 0.5, 'big-bones': 1 };
+export const FERTILISER: Record<string, number> = { bones: 0.5, 'big-bones': 1, 'fert-phosphate': 1.5 };
 
 export function plant(w: World, idx: number, seedId: string, lv: Levels, cardTier: Tier, now = Date.now(), fertiliser: string | null = null, grade: 1 | 2 | 3 | 4 = 3): boolean {
   const s = SEEDS.find((x) => x.id === seedId)!;

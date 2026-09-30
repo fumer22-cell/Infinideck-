@@ -24,6 +24,7 @@ function sourceName(c: PoolCard) {
   if (c.source === 'basic') return 'Basic';
   if (c.source === 'technique') return 'Technique';
   if (c.source === 'food') return 'Packed food';
+  if (c.source === 'spellbook') return 'Spell · quest reward';
   if (c.source === 'fists') return 'Bare hands';
   return ITEMS[c.source]?.name ?? c.source;
 }

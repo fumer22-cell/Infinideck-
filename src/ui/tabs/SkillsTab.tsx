@@ -409,7 +409,7 @@ function FarmPanel() {
     <div className="col">
       <div className="desc small">Your card’s maturity boosts the harvest, and so do bones from combat. More plots unlock at Farming 15, 35 and 55.</div>
       <label className="toggle">
-        <span>Fertiliser: bones +50%, big bones +100%</span>
+        <span>Fertiliser: bones +50%, big bones +100%, phosphate +150%</span>
         <select id="fertiliser" value={fert} onChange={(e) => setFert(e.target.value)} style={{ width: 150 }}>
           <option value="auto">Best I have{fertOptions.length ? '' : ' (none)'}</option>
           <option value="none">Don’t use</option>
