@@ -11,6 +11,9 @@ export function Decks() {
   const { go, settings } = useApp();
   const [decks, setDecks] = useState<Row[] | null>(null);
   const [name, setName] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
+  const active = decks?.filter((d) => !d.archived);
+  const archived = decks?.filter((d) => d.archived) ?? [];
 
   const load = async () => {
     const all = await db.decks.orderBy('name').toArray();
@@ -44,7 +47,7 @@ export function Decks() {
             <button className="btn small primary" onClick={create} disabled={!name.trim()}>Create</button>
           </div>
         </div>
-        {!!decks?.length && (
+        {!!active?.length && (
           <div className="row small muted" style={{ justifyContent: 'flex-end', gap: 10 }}>
             <span style={{ color: '#7ab8ff' }}>new</span>
             <span style={{ color: '#ff7a60' }}>learning</span>
@@ -52,8 +55,8 @@ export function Decks() {
           </div>
         )}
         <div className="list">
-          {decks?.length === 0 && <EmptyState icon="book" title="No decks yet">Create one above, or import an Anki deck.</EmptyState>}
-          {decks?.map((d) => (
+          {active?.length === 0 && <EmptyState icon="book" title={archived.length ? 'No active decks' : 'No decks yet'}>Create one above, or import an Anki deck.</EmptyState>}
+          {active?.map((d) => (
             <button key={d.id} className="list-item" onClick={() => go({ name: 'deck', deckId: d.id! })}>
               <Sprite name="book" size={24} />
               <div className="name">
@@ -69,6 +72,27 @@ export function Decks() {
             </button>
           ))}
         </div>
+        {archived.length > 0 && (
+          <>
+            <button className="btn small plain" onClick={() => setShowArchived((s) => !s)} aria-expanded={showArchived}>
+              {showArchived ? '▾' : '▸'} Archived ({archived.length} deck{archived.length > 1 ? 's' : ''}, {archived.reduce((n, d) => n + d.total, 0)} cards)
+            </button>
+            {showArchived && (
+              <div className="list">
+                {archived.map((d) => (
+                  <button key={d.id} className="list-item archived" onClick={() => go({ name: 'deck', deckId: d.id! })}>
+                    <Sprite name="chest" size={24} />
+                    <div className="name">
+                      <div>{d.name}</div>
+                      <div className="small muted num">{d.total} cards · not studied</div>
+                    </div>
+                    <span className="chev" aria-hidden>▸</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </>
   );

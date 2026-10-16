@@ -41,6 +41,15 @@ export function DeckView({ deckId }: { deckId: number }) {
     toast(on ? 'Typed answers on for this deck.' : 'Typed answers off.');
   };
 
+  const toggleArchive = async () => {
+    const on = !deck.archived;
+    if (on && !(await ask(`Archive "${deck.name}"? Its ${cards.length} cards stop coming up for study until you restore it. Their schedules are kept.`, 'Archive'))) return;
+    await db.decks.update(deckId, { archived: on });
+    setDeck({ ...deck, archived: on });
+    setDue(on ? 0 : (await countDue(Date.now(), settings, [deckId])).total);
+    toast(on ? 'Deck archived.' : 'Deck restored. Overdue cards will come up first.');
+  };
+
   const rename = async () => {
     if (!newName.trim()) return;
     await db.decks.update(deckId, { name: newName.trim() });
@@ -69,6 +78,12 @@ export function DeckView({ deckId }: { deckId: number }) {
           <div className="row">
             <input id="deck-name" type="text" value={newName} onChange={(e) => setNewName(e.target.value)} aria-label="Deck name" />
             <button className="btn small primary" onClick={rename}>Save</button>
+          </div>
+        )}
+        {deck.archived && (
+          <div className="stone col center">
+            <div className="desc">This deck is archived. Its cards don’t come up for study, practice or combat.</div>
+            <button className="btn block primary" onClick={toggleArchive}>Restore deck</button>
           </div>
         )}
         <div className="stone gilded col">
@@ -113,6 +128,7 @@ export function DeckView({ deckId }: { deckId: number }) {
           {cards.length > filtered.length && !q && <div className="small muted center">Showing the first 300. Search to find more.</div>}
           {!cards.length && <EmptyState icon="book" title="No cards yet">Add your first card, or import some from Anki.</EmptyState>}
         </div>
+        {!deck.archived && <button className="btn stone block" onClick={toggleArchive}>Archive this deck</button>}
         <button className="btn danger-link" onClick={remove}>Delete this deck</button>
       </div>
     </>

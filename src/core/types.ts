@@ -17,6 +17,8 @@ export interface Deck {
   created: number;
   /** type answers and have the app check them ("verified" answers earn extra) */
   typeAnswers?: boolean;
+  /** archived decks sit out of studying entirely; their cards keep their schedules for when they come back */
+  archived?: boolean;
 }
 
 /** A card row. FSRS fields mirror ts-fsrs `Card`, with dates stored as epoch ms. */

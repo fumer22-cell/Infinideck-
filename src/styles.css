@@ -626,3 +626,4 @@ button.list-item:disabled { cursor: default; }
 .quest-complete h1 { margin: 4px 0; }
 .quest-complete .stars { font-size: 22px; letter-spacing: 4px; color: #4a3a20; }
 .quest-complete .stars .on { color: var(--gold-hi); text-shadow: 0 0 8px rgba(255, 200, 80, 0.6); }
+.list-item.archived { opacity: 0.75; }

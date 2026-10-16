@@ -1,6 +1,6 @@
 import { db } from '../core/db';
 import { SCHOLARSHIP_XP } from '../core/profile';
-import { getDueQueue, isLeech, reviewCard, State, tierOf } from '../core/srs';
+import { archivedDeckIds, getDueQueue, isLeech, reviewCard, State, tierOf } from '../core/srs';
 import type { CardRow, Tier } from '../core/types';
 import type { AppCtx } from './context';
 
@@ -14,7 +14,8 @@ export async function dueQueue(app: Pick<AppCtx, 'settings'>, exclude?: Set<numb
  * Practice never records a review, so it cannot change scheduling.
  */
 export async function practicePool(): Promise<CardRow[]> {
-  const reviewed = await db.cards.where('state').equals(State.Review).filter((c) => !c.suspended).toArray();
+  const archived = await archivedDeckIds();
+  const reviewed = await db.cards.where('state').equals(State.Review).filter((c) => !c.suspended && !archived.has(c.deckId)).toArray();
   const mature = reviewed.filter((c) => c.scheduled_days >= 21);
   return mature.length >= 3 ? mature : reviewed;
 }

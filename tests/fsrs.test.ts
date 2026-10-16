@@ -146,3 +146,19 @@ describe('maturity tiers & leeches', () => {
     expect(isLeech({ lapses: 5, leechBase: 4 })).toBe(false);
   });
 });
+
+describe('archived decks', () => {
+  it('sit out of the queue entirely, and come back with their schedules intact', async () => {
+    const keep = (await db.decks.add({ name: 'New chem', created: NOW })) as number;
+    const old = (await db.decks.add({ name: 'Old chem', created: NOW, archived: true })) as number;
+    const a = await addCard({ deckId: keep, ...reviewRow(-DAY, 10) });
+    const b = await addCard({ deckId: old, ...reviewRow(-DAY, 10) });
+    await addCard({ deckId: old }); // a new card in the archive
+    expect((await getDueQueue(opts)).map((c) => c.id)).toEqual([a.id]);
+    await db.decks.update(old, { archived: false });
+    const q = (await getDueQueue(opts)).map((c) => c.id);
+    expect(q).toContain(b.id);
+    expect(q).toHaveLength(3);
+    expect((await db.cards.get(b.id!))!.due).toBe(b.due);
+  });
+});

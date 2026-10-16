@@ -183,6 +183,11 @@ export async function reviewsDoneToday(now: number, dayStartHour: number): Promi
   return logs.filter((l) => l.state !== State.New && l.source === 'app').length;
 }
 
+/** Decks set aside with Archive: none of their cards are studied, counted or practised. */
+export async function archivedDeckIds(): Promise<Set<number>> {
+  return new Set((await db.decks.filter((d) => !!d.archived).toArray()).map((d) => d.id!));
+}
+
 /**
  * Today's due queue: learning cards first, then reviews by due date, with new
  * cards (up to the daily limit) mixed in. Only contains cards that are due NOW.
@@ -191,7 +196,8 @@ export async function getDueQueue(opts: QueueOptions): Promise<CardRow[]> {
   const { now, dayStartHour } = opts;
   const end = dayEnd(now, dayStartHour);
   const deckSet = opts.deckIds ? new Set(opts.deckIds) : null;
-  const ok = (c: CardRow) => !c.suspended && (!deckSet || deckSet.has(c.deckId)) && !opts.exclude?.has(c.id!);
+  const archived = await archivedDeckIds();
+  const ok = (c: CardRow) => !c.suspended && !archived.has(c.deckId) && (!deckSet || deckSet.has(c.deckId)) && !opts.exclude?.has(c.id!);
 
   const candidates = await db.cards.where('due').below(end).toArray();
   const learning = candidates
@@ -227,7 +233,8 @@ export async function getDueQueue(opts: QueueOptions): Promise<CardRow[]> {
 export async function nextLearningDue(now: number, deckIds?: number[]): Promise<number | null> {
   const deckSet = deckIds ? new Set(deckIds) : null;
   const rows = await db.cards.where('due').above(now).toArray();
-  const learn = rows.filter((c) => !c.suspended && (c.state === State.Learning || c.state === State.Relearning) && (!deckSet || deckSet.has(c.deckId)));
+  const archived = await archivedDeckIds();
+  const learn = rows.filter((c) => !c.suspended && !archived.has(c.deckId) && (c.state === State.Learning || c.state === State.Relearning) && (!deckSet || deckSet.has(c.deckId)));
   if (!learn.length) return null;
   return Math.min(...learn.map((c) => c.due));
 }
